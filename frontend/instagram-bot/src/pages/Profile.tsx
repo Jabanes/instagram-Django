@@ -29,9 +29,22 @@ const Profile = () => {
       dispatch(updateUser(update));
       setEditing(null);
       setInputValue('');
-    } catch (err) {
-      alert('Failed to update user info.');
-      console.error(err);
+    } catch (err: any) {
+      console.error('Signup failed', err);
+  
+      // If the error has a response (from Django), display the message
+      if (err.response && err.response.data) {
+        const errorData = err.response.data;
+  
+        // Collect all error messages into one string
+        const errorMessages = Object.values(errorData)
+          .flat()
+          .join('\n');
+  
+        alert(`⚠️ Signup failed:\n${errorMessages}`);
+      } else {
+        alert('⚠️ Signup failed: An unknown error occurred.');
+      }
     }
   };
 
