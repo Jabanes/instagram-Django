@@ -151,8 +151,10 @@ class Command(BaseCommand):
         bot.run()
 
         if bot.success:
-            self.stdout.write(self.style.SUCCESS(f"Successfully saved following list for {user.username}"))
+            self.stdout.write(self.style.SUCCESS(f"Successfully saved following for {user.username}"))
+            print("FOLLOWING_SAVED")  # ✅ Print a flag to catch in subprocess
         else:
             self.stdout.write(self.style.ERROR(f"Bot failed: No data extracted for user {user.username}"))
-            raise Exception("Bot failed: No following data extracted.")
+            print("NO_DATA_SAVED")  # ✅ Another flag
+            exit(1)
         

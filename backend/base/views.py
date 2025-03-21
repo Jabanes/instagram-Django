@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer, UserUpdateSerializer
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from .models import NonFollower
+from .models import NonFollower, Follower, Following
 import subprocess
 import os
 import tempfile
@@ -70,33 +70,73 @@ def update_profile(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def run_instagram_following_script(request):
-    user_id = request.user.id
+    user = request.user
+    user_id = user.id
+
+    # Step 1: Count following BEFORE the scan
+    before_count = Following.objects.filter(user=user).count()
 
     try:
-        subprocess.run(['python', 'manage.py', 'extract_following', str(user_id)], check=True)
-        return Response({'status': 'success', 'message': 'Script executed successfully'})
-    except subprocess.CalledProcessError:
-        return Response({f"status': 'error', 'message': 'Script execution failed for user {user_id}"}, status=500)
+        # Run the script (no assignment to a variable)
+        subprocess.run(
+            ['python', 'manage.py', 'extract_following', str(user_id)],
+            check=True
+        )
 
+        # Step 2: Count following AFTER the scan
+        after_count = Following.objects.filter(user=user).count()
+
+        if after_count > before_count:
+            return Response({
+                'status': 'success',
+                'message': f'✅ Saved {after_count} following users to the database.'
+            })
+        else:
+            return Response({
+                'status': 'no_change',
+                'message': '⚠️ Bot ran successfully, but no new following data was saved.'
+            })
+
+    except subprocess.CalledProcessError:
+        return Response({
+            'status': 'error',
+            'message': f'❌ Script execution failed for user {user_id}.'
+        }, status=500)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def run_instagram_followers_script(request):
-    user_id = request.user.id
+    user = request.user
+    user_id = user.id
+
+    # Step 1: Count followers BEFORE the scan
+    before_count = Follower.objects.filter(user=user).count()
 
     try:
         subprocess.run(
             ['python', 'manage.py', 'extract_followers', str(user_id)],
             check=True
         )
-        return Response({
-            'status': 'success',
-            'message': 'Script executed successfully'
-        })
+
+        # Step 2: Count followers AFTER the scan
+        after_count = Follower.objects.filter(user=user).count()
+
+        if after_count > before_count:
+            return Response({
+                'status': 'success',
+                'message': f'✅ Saved {after_count} followers to the database.'
+            })
+        else:
+            return Response({
+                'status': 'no_change',
+                'message': '⚠️ Bot ran, but no new data was saved.'
+            })  # 👈 no error status
+
+
     except subprocess.CalledProcessError:
         return Response({
             'status': 'error',
-            'message': f'Script execution failed for user {user_id}'
+            'message': f'❌ Script execution failed for user {user_id}.'
         }, status=500)
 
 
@@ -122,3 +162,15 @@ def confirm_bot_ready(request):
             "message": "❌ Failed to confirm bot readiness."
         }, status=500)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_follow_stats(request):
+    user = request.user
+    follower_count = Follower.objects.filter(user=user).count()
+    following_count = Following.objects.filter(user=user).count()
+
+    return Response({
+        "followers": follower_count,
+        "following": following_count
+    })

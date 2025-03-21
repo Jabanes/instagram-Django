@@ -99,8 +99,12 @@ class InstagramFollowers:
         if not self.followers:
             print(f"❌ No followers extracted for {self.user.username}.")
             return
+        
+         # If we have extracted data, safely replace the old with the new
+        print(f"🔄 Replacing old following list for {self.user.username}...")
 
         Follower.objects.filter(user=self.user).delete()
+
         Follower.objects.bulk_create([
             Follower(user=self.user, username=username)
             for username in self.followers
@@ -141,6 +145,8 @@ class Command(BaseCommand):
 
         if bot.success:
             self.stdout.write(self.style.SUCCESS(f"Successfully saved followers for {user.username}"))
+            print("FOLLOWERS_SAVED")  # ✅ Print a flag to catch in subprocess
         else:
             self.stdout.write(self.style.ERROR(f"Bot failed: No data extracted for user {user.username}"))
-            raise Exception("Bot failed: No follower data extracted.")
+            print("NO_DATA_SAVED")  # ✅ Another flag
+            exit(1)
