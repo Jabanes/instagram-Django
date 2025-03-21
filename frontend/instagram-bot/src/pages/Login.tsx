@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
@@ -19,8 +20,22 @@ export default function Login() {
       localStorage.setItem('token', data.access);
       localStorage.setItem('user', JSON.stringify(data.user));
       navigate('/dashboard');
-    } catch (err) {
-      console.error('Login failed', err);
+    } catch (err: any) {
+      console.error('Signup failed', err);
+  
+      // If the error has a response (from Django), display the message
+      if (err.response && err.response.data) {
+        const errorData = err.response.data;
+  
+        // Collect all error messages into one string
+        const errorMessages = Object.values(errorData)
+          .flat()
+          .join('\n');
+  
+        alert(`⚠️ Signup failed:\n${errorMessages}`);
+      } else {
+        alert('⚠️ Signup failed: An unknown error occurred.');
+      }
     }
   };
 

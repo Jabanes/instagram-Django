@@ -1,7 +1,10 @@
+from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+import pytz
 
+israel_tz = pytz.timezone("Asia/Jerusalem")
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
@@ -23,6 +26,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         user = self.user  # Get authenticated user
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
 
         # Add user details to the token response
         data["user"] = {
@@ -30,8 +35,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
-            "last_login": user.last_login.strftime("%Y-%m-%d %H:%M:%S") if user.last_login else None,
+            "date_joined": timezone.localtime(user.date_joined, israel_tz).strftime("%d/%m/%Y %H:%M:%S"),
+            "last_login": timezone.localtime(user.last_login, israel_tz).strftime("%d/%m/%Y %H:%M:%S") if user.last_login else None,
             "roles": list(user.groups.values_list("name", flat=True)),  # Get roles as a list
         }
 

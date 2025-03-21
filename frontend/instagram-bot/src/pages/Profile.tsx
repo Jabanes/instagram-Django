@@ -31,23 +31,23 @@ const Profile = () => {
       setInputValue('');
     } catch (err: any) {
       console.error('Signup failed', err);
-  
+
       // If the error has a response (from Django), display the message
       if (err.response && err.response.data) {
         const errorData = err.response.data;
-  
+
         // Collect all error messages into one string
         const errorMessages = Object.values(errorData)
           .flat()
           .join('\n');
-  
+
         alert(`⚠️ Signup failed:\n${errorMessages}`);
       } else {
         alert('⚠️ Signup failed: An unknown error occurred.');
       }
     }
   };
-
+  
   const renderRow = (
     label: string,
     field: keyof User | 'password',
@@ -137,7 +137,7 @@ const Profile = () => {
               <div className="row align-items-center">
                 <div className="col-4 fw-bold">Date Joined:</div>
                 <div className="col-6 text-center">
-                  {new Date(user.date_joined).toLocaleString()}
+                  {user.date_joined}
                 </div>
               </div>
             </li>
@@ -145,9 +145,7 @@ const Profile = () => {
               <div className="row align-items-center">
                 <div className="col-4 fw-bold">Last Login:</div>
                 <div className="col-6 text-center">
-                  {user.last_login
-                    ? new Date(user.last_login).toLocaleString()
-                    : 'Never'}
+                {user.last_login ? user.last_login : 'Never'}
                 </div>
               </div>
             </li>
