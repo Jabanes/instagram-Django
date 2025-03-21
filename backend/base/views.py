@@ -7,6 +7,9 @@ from .serializers import RegisterSerializer, MyTokenObtainPairSerializer, UserUp
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from .models import NonFollower
+import subprocess
+import os
+import tempfile
 
 @api_view(['GET'])
 def index(req):
@@ -62,3 +65,60 @@ def update_profile(request):
         return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def run_instagram_following_script(request):
+    user_id = request.user.id
+
+    try:
+        subprocess.run(['python', 'manage.py', 'extract_following', str(user_id)], check=True)
+        return Response({'status': 'success', 'message': 'Script executed successfully'})
+    except subprocess.CalledProcessError:
+        return Response({f"status': 'error', 'message': 'Script execution failed for user {user_id}"}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def run_instagram_followers_script(request):
+    user_id = request.user.id
+
+    try:
+        subprocess.run(
+            ['python', 'manage.py', 'extract_followers', str(user_id)],
+            check=True
+        )
+        return Response({
+            'status': 'success',
+            'message': 'Script executed successfully'
+        })
+    except subprocess.CalledProcessError:
+        return Response({
+            'status': 'error',
+            'message': f'Script execution failed for user {user_id}'
+        }, status=500)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def confirm_bot_ready(request):
+    user_id = request.user.id
+    flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{user_id}.flag")
+
+    try:
+        with open(flag_path, "w") as f:
+            f.write("ready")
+
+        return Response({
+            "status": "success",
+            "message": "✅ Bot confirmed ready. The bot will now continue."
+        })
+    except Exception as e:
+        print(f"[❌ Flag Write Error]: {e}")
+        return Response({
+            "status": "error",
+            "message": "❌ Failed to confirm bot readiness."
+        }, status=500)
+

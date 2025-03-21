@@ -1,19 +1,20 @@
 // src/pages/Signup.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { registerUser } from '../features/auth/authAPI';
 
 const Signup = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstname] = useState('');
+  const [lastName, setLastname] = useState('');
   const [email, setEmail] = useState('');
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await registerUser(username, password, email)
+      await registerUser(username, password, email, firstName, lastName)
       alert('✅ Account created! You can now log in.');
       navigate('/login');
       
@@ -41,6 +42,12 @@ const Signup = () => {
       <h2 className="mb-3">Sign Up</h2>
       <div className="mb-3">
         <input type="text" className="form-control" placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div className="mb-3">
+        <input type="text" className="form-control" placeholder="First Name" onChange={(e) => setFirstname(e.target.value)} />
+      </div>
+      <div className="mb-3">
+        <input type="text" className="form-control" placeholder="Last Name" onChange={(e) => setLastname(e.target.value)} />
       </div>
       <div className="mb-3">
         <input type="text" className="form-control" placeholder="Username" onChange={(e) => setUsername(e.target.value)} />

@@ -8,6 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import os
+import tempfile
 
 class InstagramFollowing:
     '''
@@ -19,6 +21,7 @@ class InstagramFollowing:
         self.user = user  # Django user
         service = Service(ChromeDriverManager().install())
         self.webdriver = webdriver.Chrome(service=service)
+        self.success = False
 
     def open_instagram(self) -> None:
         '''
@@ -26,7 +29,16 @@ class InstagramFollowing:
         '''
         self.webdriver.get("https://www.instagram.com/")
         print("🚀 Log into Instagram manually, then press ENTER here.")
-        input("Press ENTER after logging in...")
+
+        flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{self.user.id}.flag")
+
+        if os.path.exists(flag_path):
+            os.remove(flag_path)  # Clear any previous flag
+    
+        # Wait for the flag file to exist
+        while not os.path.exists(flag_path):
+            time.sleep(1)  # Poll every second
+
 
     def go_to_following(self) -> None:
         '''
@@ -83,19 +95,30 @@ class InstagramFollowing:
     def save_results_to_db(self) -> None:
         '''
         Save following list to Django database instead of text file.
+        Prevents wiping data if extraction fails.
         '''
-        if self.user:
-            # Clear old following data for this user before inserting new ones
-            Following.objects.filter(user=self.user).delete()
-
-            # Save new following list
-            Following.objects.bulk_create([
-                Following(user=self.user, username=username)
-                for username in self.following
-            ])
-            print(f"✅ Saved {len(self.following)} following users for {self.user.username} in the database.")
-        else:
+        if not self.user:
             print("⚠️ No user found. Cannot save to database.")
+            return
+
+        if not self.following:
+            print(f"❌ No following data extracted for {self.user.username}. Keeping existing data untouched.")
+            return
+
+        # If we have extracted data, safely replace the old with the new
+        print(f"🔄 Replacing old following list for {self.user.username}...")
+
+        Following.objects.filter(user=self.user).delete()
+
+        Following.objects.bulk_create([
+            Following(user=self.user, username=username)
+            for username in self.following
+        ])
+
+        print("🎉 Process completed! Following list saved in the database.")
+        print(f"✅ Saved {len(self.following)} following users for {self.user.username} in the database.")
+        self.success = True
+
 
     def run(self):
         '''
@@ -106,7 +129,6 @@ class InstagramFollowing:
         self.scroll_to_load_following()
         self.extract_following()
         self.save_results_to_db()
-        print("🎉 Process completed! Following list saved in the database.")
         self.webdriver.quit()
 
 
@@ -128,4 +150,9 @@ class Command(BaseCommand):
         bot = InstagramFollowing(user=user)
         bot.run()
 
-        self.stdout.write(self.style.SUCCESS(f"Successfully saved following list for {user.username}"))
+        if bot.success:
+            self.stdout.write(self.style.SUCCESS(f"Successfully saved following list for {user.username}"))
+        else:
+            self.stdout.write(self.style.ERROR(f"Bot failed: No data extracted for user {user.username}"))
+            raise Exception("Bot failed: No following data extracted.")
+        

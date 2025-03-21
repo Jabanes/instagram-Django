@@ -8,6 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import os
+import tempfile
 
 class InstagramFollowers:
     '''
@@ -19,6 +21,7 @@ class InstagramFollowers:
         self.user = user  # Django user
         service = Service(ChromeDriverManager().install())
         self.webdriver = webdriver.Chrome(service=service)
+        self.success = False
 
     def open_instagram(self) -> None:
         '''
@@ -26,7 +29,15 @@ class InstagramFollowers:
         '''
         self.webdriver.get("https://www.instagram.com/")
         print("🚀 Log into Instagram manually, then press ENTER here.")
-        input("Press ENTER after logging in...")
+
+        flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{self.user.id}.flag")
+
+        if os.path.exists(flag_path):
+            os.remove(flag_path)  # Clear any previous flag
+    
+        # Wait for the flag file to exist
+        while not os.path.exists(flag_path):
+            time.sleep(1)  # Poll every second
 
     def go_to_followers(self) -> None:
         '''
@@ -81,21 +92,21 @@ class InstagramFollowers:
             print(f"⚠️ Error extracting followers: {str(e)}")
 
     def save_results_to_db(self) -> None:
-        '''
-        Save followers to Django database instead of text file.
-        '''
-        if self.user:
-            # Clear old followers for this user before inserting new ones
-            Follower.objects.filter(user=self.user).delete()
-
-            # Save new followers
-            Follower.objects.bulk_create([
-                Follower(user=self.user, username=username)
-                for username in self.followers
-            ])
-            print(f"✅ Saved {len(self.followers)} followers for {self.user.username} in the database.")
-        else:
+        if not self.user:
             print("⚠️ No user found. Cannot save to database.")
+            return
+
+        if not self.followers:
+            print(f"❌ No followers extracted for {self.user.username}.")
+            return
+
+        Follower.objects.filter(user=self.user).delete()
+        Follower.objects.bulk_create([
+            Follower(user=self.user, username=username)
+            for username in self.followers
+        ])
+        print(f"✅ Saved {len(self.followers)} followers for {self.user.username} in the database.")
+        self.success = True
 
     def run(self):
         '''
@@ -114,18 +125,22 @@ class Command(BaseCommand):
     help = "Extract followers and save them in the database"
 
     def add_arguments(self, parser):
-        parser.add_argument('username', type=str, help="The username of the logged-in Django user")
+        parser.add_argument('user_id', type=int, help="The ID of the logged-in Django user")
 
     def handle(self, *args, **kwargs):
-        username = kwargs['username']
+        user_id = kwargs['user_id']
         
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            self.stdout.write(self.style.ERROR(f"User '{username}' not found in the database."))
+            self.stdout.write(self.style.ERROR(f"User with ID '{user_id}' not found in the database."))
             return
 
         bot = InstagramFollowers(user=user)
         bot.run()
 
-        self.stdout.write(self.style.SUCCESS(f"Successfully saved followers for {user.username}"))
+        if bot.success:
+            self.stdout.write(self.style.SUCCESS(f"Successfully saved followers for {user.username}"))
+        else:
+            self.stdout.write(self.style.ERROR(f"Bot failed: No data extracted for user {user.username}"))
+            raise Exception("Bot failed: No follower data extracted.")
