@@ -2,7 +2,10 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import UserScanInfo
 import pytz
+
+
 
 israel_tz = pytz.timezone("Asia/Jerusalem")
 
@@ -19,6 +22,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         group, created = Group.objects.get_or_create(name="User")
         user.groups.add(group)
+        UserScanInfo.objects.create(user=user)
         return user
 
 

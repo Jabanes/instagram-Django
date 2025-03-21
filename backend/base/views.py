@@ -6,10 +6,11 @@ from rest_framework.permissions import IsAuthenticated
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer, UserUpdateSerializer
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from .models import NonFollower, Follower, Following
+from .models import NonFollower, Follower, Following, UserScanInfo
 import subprocess
 import os
 import tempfile
+from django.utils.timezone import now
 
 @api_view(['GET'])
 def index(req):
@@ -87,6 +88,9 @@ def run_instagram_following_script(request):
         after_count = Following.objects.filter(user=user).count()
 
         if after_count > before_count:
+            user.scan_info.last_followers_scan = now()
+            user.scan_info.save()
+            
             return Response({
                 'status': 'success',
                 'message': f'✅ Saved {after_count} following users to the database.'
@@ -122,6 +126,9 @@ def run_instagram_followers_script(request):
         after_count = Follower.objects.filter(user=user).count()
 
         if after_count > before_count:
+            user.scan_info.last_followers_scan = now()
+            user.scan_info.save()
+
             return Response({
                 'status': 'success',
                 'message': f'✅ Saved {after_count} followers to the database.'
@@ -174,3 +181,4 @@ def get_user_follow_stats(request):
         "followers": follower_count,
         "following": following_count
     })
+

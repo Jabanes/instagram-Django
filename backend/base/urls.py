@@ -14,4 +14,5 @@ urlpatterns = [
     path('get-followers', run_instagram_followers_script),
     path('confirm-bot-ready', confirm_bot_ready),
     path('follow-stats', get_user_follow_stats),
+    
 ]

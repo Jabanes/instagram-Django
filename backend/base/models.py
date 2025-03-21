@@ -21,3 +21,11 @@ class NonFollower(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.username}"
+    
+class UserScanInfo(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="scan_info")
+    last_following_scan = models.DateTimeField(null=True, blank=True)
+    last_followers_scan = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Scan Info for {self.user.username}"
