@@ -28,12 +28,45 @@ const Dashboard = () => {
       const token = localStorage.getItem('token');
       const response = await axios.get('http://127.0.0.1:8000/follow-stats', {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-
-      setFollowersCount(response.data.followers);
-      setFollowingCount(response.data.following);
+  
+      const { followers, following, last_followers_scan, last_following_scan } = response.data;
+  
+      setFollowersCount(followers);
+      setFollowingCount(following);
+  
+      if (last_followers_scan) {
+        const date = new Date(last_followers_scan);
+        const formatted = date.toLocaleString('he-IL', {
+          timeZone: 'Asia/Jerusalem',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        setLastFollowersScan(formatted);
+      }
+  
+      if (last_following_scan) {
+        const date = new Date(last_following_scan);
+        const formatted = date.toLocaleString('he-IL', {
+          timeZone: 'Asia/Jerusalem',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        setLastFollowingScan(formatted);
+      }
+  
     } catch (err) {
       console.error("Failed to fetch follow stats:", err);
     }
@@ -44,9 +77,9 @@ const Dashboard = () => {
     setBotStatus("");
   
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await axios.post(
-        'http://127.0.0.1:8000/get-following',
+        "http://127.0.0.1:8000/get-following",
         {},
         {
           headers: {
@@ -57,24 +90,12 @@ const Dashboard = () => {
   
       const { status } = response.data;
   
-      const israelTime = new Date().toLocaleString('he-IL', {
-        timeZone: 'Asia/Jerusalem',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
-  
       if (status === "success") {
         setBotStatus("success");
-        setLastFollowingScan(israelTime);
-        await fetchStats(); // Re-fetch updated following count
+        await fetchStats();
       } else if (status === "no_change") {
         setBotStatus("no_change");
-        setLastFollowingScan(israelTime); // Optional: still update last scan time
+        await fetchStats();
       } else {
         setBotStatus("error");
       }
@@ -89,7 +110,7 @@ const Dashboard = () => {
   const getFollowers = async () => {
     setStep("waiting");
     setBotStatus("");
-
+  
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
@@ -101,26 +122,15 @@ const Dashboard = () => {
           },
         }
       );
-
+  
       const { status } = response.data;
-
+  
       if (status === "success") {
-        const israelTime = new Date().toLocaleString("he-IL", {
-          timeZone: "Asia/Jerusalem",
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        });
-
         setBotStatus("success");
-        setLastFollowersScan(israelTime);
         await fetchStats();
       } else if (status === "no_change") {
         setBotStatus("no_change");
+        await fetchStats();
       } else {
         setBotStatus("error");
       }
@@ -131,7 +141,6 @@ const Dashboard = () => {
       setStep("idle");
     }
   };
-
   const handleConfirmReady = async () => {
     try {
       const token = localStorage.getItem('token');

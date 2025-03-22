@@ -87,9 +87,12 @@ def run_instagram_following_script(request):
         # Step 2: Count following AFTER the scan
         after_count = Following.objects.filter(user=user).count()
 
+        user.scan_info.last_following_scan = now()
+        user.scan_info.save()
+        print(f"saved last following_scan: {now()}")
+
         if after_count > before_count:
-            user.scan_info.last_followers_scan = now()
-            user.scan_info.save()
+            
             
             return Response({
                 'status': 'success',
@@ -124,10 +127,12 @@ def run_instagram_followers_script(request):
 
         # Step 2: Count followers AFTER the scan
         after_count = Follower.objects.filter(user=user).count()
+        user.scan_info.last_followers_scan = now()
+        user.scan_info.save()
+        print(f"saved last followers_scan: {now()}")
 
         if after_count > before_count:
-            user.scan_info.last_followers_scan = now()
-            user.scan_info.save()
+            
 
             return Response({
                 'status': 'success',
@@ -140,12 +145,13 @@ def run_instagram_followers_script(request):
             })  # 👈 no error status
 
 
+            
     except subprocess.CalledProcessError:
         return Response({
             'status': 'error',
             'message': f'❌ Script execution failed for user {user_id}.'
         }, status=500)
-
+    
 
 
 @api_view(['POST'])
@@ -177,8 +183,12 @@ def get_user_follow_stats(request):
     follower_count = Follower.objects.filter(user=user).count()
     following_count = Following.objects.filter(user=user).count()
 
+    scan_info = getattr(user, "scan_info", None)
+
     return Response({
         "followers": follower_count,
-        "following": following_count
+        "following": following_count,
+        "last_followers_scan": scan_info.last_followers_scan if scan_info else None,
+        "last_following_scan": scan_info.last_following_scan if scan_info else None,
     })
 
