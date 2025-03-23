@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import NonFollowers from './NonFollowers';
 
 const Dashboard = () => {
   const [step, setStep] = useState<"idle" | "waiting" | "ready">("idle");
@@ -8,6 +9,7 @@ const Dashboard = () => {
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(null);
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
+  const [newDataDetected, setNewDataDetected] = useState(false);
 
 
 
@@ -31,12 +33,12 @@ const Dashboard = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-  
+
       const { followers, following, last_followers_scan, last_following_scan } = response.data;
-  
+
       setFollowersCount(followers);
       setFollowingCount(following);
-  
+
       if (last_followers_scan) {
         const date = new Date(last_followers_scan);
         const formatted = date.toLocaleString('he-IL', {
@@ -51,7 +53,7 @@ const Dashboard = () => {
         });
         setLastFollowersScan(formatted);
       }
-  
+
       if (last_following_scan) {
         const date = new Date(last_following_scan);
         const formatted = date.toLocaleString('he-IL', {
@@ -66,7 +68,7 @@ const Dashboard = () => {
         });
         setLastFollowingScan(formatted);
       }
-  
+
     } catch (err) {
       console.error("Failed to fetch follow stats:", err);
     }
@@ -75,7 +77,7 @@ const Dashboard = () => {
   const getFollowing = async () => {
     setStep("waiting");
     setBotStatus("");
-  
+
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
@@ -87,14 +89,15 @@ const Dashboard = () => {
           },
         }
       );
+
+      const { status, before_count, after_count } = response.data;
+
+      if (status === "success" || status === "no_change") {
+        if (after_count !== before_count) {
+          setNewDataDetected(true);
+        }
   
-      const { status } = response.data;
-  
-      if (status === "success") {
-        setBotStatus("success");
-        await fetchStats();
-      } else if (status === "no_change") {
-        setBotStatus("no_change");
+        setBotStatus(status);
         await fetchStats();
       } else {
         setBotStatus("error");
@@ -110,7 +113,7 @@ const Dashboard = () => {
   const getFollowers = async () => {
     setStep("waiting");
     setBotStatus("");
-  
+
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
@@ -122,9 +125,9 @@ const Dashboard = () => {
           },
         }
       );
-  
+
       const { status } = response.data;
-  
+
       if (status === "success") {
         setBotStatus("success");
         await fetchStats();
@@ -252,7 +255,14 @@ const Dashboard = () => {
             ⚠️ Bot ran successfully, but no new data was saved.
           </div>
         )}
-
+        <NonFollowers
+          followersCount={followersCount}
+          followingCount={followingCount}
+          lastFollowersScan={lastFollowersScan}
+          lastFollowingScan={lastFollowingScan}
+          botStatus={botStatus}
+          newDataDetected={newDataDetected}
+        />
       </div>
     </div>
   );

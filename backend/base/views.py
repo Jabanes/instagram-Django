@@ -1,3 +1,4 @@
+import traceback
 from rest_framework.response import Response
 from rest_framework.decorators import api_view,  permission_classes
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -6,11 +7,12 @@ from rest_framework.permissions import IsAuthenticated
 from .serializers import RegisterSerializer, MyTokenObtainPairSerializer, UserUpdateSerializer
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from .models import NonFollower, Follower, Following, UserScanInfo
+from .models import NonFollower, Follower, Following
 import subprocess
 import os
 import tempfile
 from django.utils.timezone import now
+from django.core.management import call_command
 
 @api_view(['GET'])
 def index(req):
@@ -35,22 +37,67 @@ def signUp(req):
 @permission_classes([IsAuthenticated])
 def get_non_followers(request):
     """Returns the non-followers list for the authenticated user."""
-    non_followers = NonFollower.objects.filter(user=request.user).values_list("username", flat=True)
-    
+    non_followers_qs = NonFollower.objects.filter(user=request.user)
+
+    non_followers = [
+        {"id": nf.id, "username": nf.username}
+        for nf in non_followers_qs
+    ]
+
     return Response(
-        {"non_followers": list(non_followers)},
+        {"non_followers": non_followers},
         status=status.HTTP_200_OK
     )
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generateNonFollowersList(request):
+    try:
+        user = request.user
+        user_id = user.id
+
+        # Run the script via subprocess
+        subprocess.run(
+            ['python', 'manage.py', 'compare_nonfollowers', str(user_id)],
+            check=True
+        )
+
+        # Fetch updated non-followers from DB
+        non_followers_qs = NonFollower.objects.filter(user=user)
+
+        non_followers = [
+            {"id": nf.id, "username": nf.username}
+            for nf in non_followers_qs
+        ]
+
+        return Response(
+            {
+                "status": "✅ Script executed via subprocess",
+                "non_followers": non_followers
+            },
+            status=status.HTTP_200_OK
+        )
+
+    except subprocess.CalledProcessError as e:
+        return Response(
+            {"error": f"❌ Script execution failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    
+
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
-def delete_non_follower(request, username):
-    """Deletes a non-follower from the user's list."""
-    non_follower = get_object_or_404(NonFollower, user=request.user, username=username)
+def delete_non_follower(request, id):
+    """
+    Deletes a non-follower from the user's list using the NonFollower model ID.
+    """
+    non_follower = get_object_or_404(NonFollower, id=id, user=request.user)
+    username = non_follower.username
     non_follower.delete()
-    
+
     return Response(
-        {"message": f"Removed {username} from non-followers list."},
+        {"message": f"✅ Removed {username} from non-followers list."},
         status=status.HTTP_200_OK
     )
 
@@ -96,12 +143,16 @@ def run_instagram_following_script(request):
             
             return Response({
                 'status': 'success',
-                'message': f'✅ Saved {after_count} following users to the database.'
+                'message': f'✅ Saved {after_count} following users to the database.',
+                'before_count': before_count,
+                'after_count': after_count,
             })
         else:
             return Response({
-                'status': 'no_change',
-                'message': '⚠️ Bot ran successfully, but no new following data was saved.'
+                 'status': 'no_change',
+                'message': '⚠️ Bot ran successfully, but no new following data was saved.',
+                'before_count': before_count,
+                'after_count': after_count,
             })
 
     except subprocess.CalledProcessError:
@@ -136,12 +187,16 @@ def run_instagram_followers_script(request):
 
             return Response({
                 'status': 'success',
-                'message': f'✅ Saved {after_count} followers to the database.'
+                'message': f'✅ Saved {after_count} following users to the database.',
+                'before_count': before_count,
+                'after_count': after_count,
             })
         else:
             return Response({
                 'status': 'no_change',
-                'message': '⚠️ Bot ran, but no new data was saved.'
+                'message': '⚠️ Bot ran successfully, but no new following data was saved.',
+                'before_count': before_count,
+                'after_count': after_count,
             })  # 👈 no error status
 
 

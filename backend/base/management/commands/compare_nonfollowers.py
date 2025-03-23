@@ -14,6 +14,7 @@ class Command(BaseCommand):
         
         try:
             user = User.objects.get(id=user_id)
+
         except User.DoesNotExist:
             self.stdout.write(self.style.ERROR(f"User with ID '{user_id}' not found in the database."))
             return
@@ -22,8 +23,14 @@ class Command(BaseCommand):
         followers = set(Follower.objects.filter(user=user).values_list('username', flat=True))
         following = set(Following.objects.filter(user=user).values_list('username', flat=True))
 
-        # Find users in 'following' but not in 'followers'
+
+
+        if not followers or not following:
+            self.stdout.write(self.style.WARNING("⚠️ No followers or following found for this user."))
+            return
+    
         non_followers = following - followers
+       
 
         # Clear old non-followers data for this user
         NonFollower.objects.filter(user=user).delete()
@@ -33,5 +40,6 @@ class Command(BaseCommand):
             NonFollower(user=user, username=username)
             for username in non_followers
         ])
-
+        
+        
         self.stdout.write(self.style.SUCCESS(f"✅ Found {len(non_followers)} users who don’t follow back. Results saved in the database for {user.username}."))

@@ -22,7 +22,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         group, created = Group.objects.get_or_create(name="User")
         user.groups.add(group)
-        UserScanInfo.objects.create(user=user)
+        UserScanInfo.objects.get_or_create(user=user)
         return user
 
 
