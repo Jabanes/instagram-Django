@@ -12,7 +12,7 @@ import subprocess
 import os
 import tempfile
 from django.utils.timezone import now
-from django.core.management import call_command
+
 
 @api_view(['GET'])
 def index(req):
@@ -246,4 +246,21 @@ def get_user_follow_stats(request):
         "last_followers_scan": scan_info.last_followers_scan if scan_info else None,
         "last_following_scan": scan_info.last_following_scan if scan_info else None,
     })
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_new_data_flag(request):
+    """
+    Checks if there is a new data flag for the authenticated user.
+    If found, returns `new_data: true` and removes the flag.
+    Otherwise, returns `new_data: false`.
+    """
+    user_id = request.user.id
+    flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{user_id}.flag")
+
+    if os.path.exists(flag_path):
+        os.remove(flag_path)  # Reset after detection
+        return Response({"new_data": True})
+
+    return Response({"new_data": False})
 

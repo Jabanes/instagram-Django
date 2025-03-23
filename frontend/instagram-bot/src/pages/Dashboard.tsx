@@ -5,8 +5,8 @@ import NonFollowers from './NonFollowers';
 const Dashboard = () => {
   const [step, setStep] = useState<"idle" | "waiting" | "ready">("idle");
   const [botStatus, setBotStatus] = useState<"success" | "error" | "no_change" | "">("");
-  const [followersCount, setFollowersCount] = useState<number | null>(null);
-  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  const [followersCount, setFollowersCount] = useState<number | 0>(0);
+  const [followingCount, setFollowingCount] = useState<number | 0>(0);
   const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(null);
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
   const [newDataDetected, setNewDataDetected] = useState(false);

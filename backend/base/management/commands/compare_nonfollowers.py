@@ -29,7 +29,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("⚠️ No followers or following found for this user."))
             return
     
-        non_followers = following - followers
+        non_followers = sorted(following - followers)
        
 
         # Clear old non-followers data for this user

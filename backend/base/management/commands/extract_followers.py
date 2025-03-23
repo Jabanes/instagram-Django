@@ -95,22 +95,35 @@ class InstagramFollowers:
         if not self.user:
             print("⚠️ No user found. Cannot save to database.")
             return
-
         if not self.followers:
-            print(f"❌ No followers extracted for {self.user.username}.")
+            print(f"❌ No followers extracted for {self.user.username}. Keeping existing data untouched.")
             return
-        
-         # If we have extracted data, safely replace the old with the new
-        print(f"🔄 Replacing old following list for {self.user.username}...")
 
-        Follower.objects.filter(user=self.user).delete()
+        print(f"🔍 Fetching current DB followers for {self.user.username}...")
+        current_followers = set(Follower.objects.filter(user=self.user).values_list("username", flat=True))
+        to_add = self.followers - current_followers
+        to_remove = current_followers - self.followers
+
+        print(f"➕ New followers to add: {to_add}")
+        print(f"➖ Old followers to remove: {to_remove}")
 
         Follower.objects.bulk_create([
             Follower(user=self.user, username=username)
-            for username in self.followers
+            for username in to_add
         ])
-        print(f"✅ Saved {len(self.followers)} followers for {self.user.username} in the database.")
+
+        Follower.objects.filter(user=self.user, username__in=to_remove).delete()
+        
+        if to_add or to_remove:
+            print("📌 Change detected! Creating frontend trigger flag.")
+            flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{self.user.id}.flag")
+            with open(flag_path, "w") as f:
+                f.write("new_data")
+
+
+        print(f"✅ Synced followers for {self.user.username}: +{len(to_add)}, -{len(to_remove)}")
         self.success = True
+
 
     def run(self):
         '''

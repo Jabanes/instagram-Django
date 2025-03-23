@@ -93,30 +93,35 @@ class InstagramFollowing:
             print(f"⚠️ Error extracting Following list: {str(e)}")
 
     def save_results_to_db(self) -> None:
-        '''
-        Save following list to Django database instead of text file.
-        Prevents wiping data if extraction fails.
-        '''
         if not self.user:
             print("⚠️ No user found. Cannot save to database.")
             return
-
         if not self.following:
             print(f"❌ No following data extracted for {self.user.username}. Keeping existing data untouched.")
             return
 
-        # If we have extracted data, safely replace the old with the new
-        print(f"🔄 Replacing old following list for {self.user.username}...")
+        print(f"🔍 Fetching current DB following for {self.user.username}...")
+        current_following = set(Following.objects.filter(user=self.user).values_list("username", flat=True))
+        to_add = self.following - current_following
+        to_remove = current_following - self.following
 
-        Following.objects.filter(user=self.user).delete()
+        print(f"➕ New followings to add: {to_add}")
+        print(f"➖ Old followings to remove: {to_remove}")
 
         Following.objects.bulk_create([
             Following(user=self.user, username=username)
-            for username in self.following
+            for username in to_add
         ])
 
-        print("🎉 Process completed! Following list saved in the database.")
-        print(f"✅ Saved {len(self.following)} following users for {self.user.username} in the database.")
+        Following.objects.filter(user=self.user, username__in=to_remove).delete()
+        
+        if to_add or to_remove:
+            print("📌 Change detected! Creating frontend trigger flag.")
+            flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{self.user.id}.flag")
+            with open(flag_path, "w") as f:
+                f.write("new_data")
+       
+        print(f"✅ Synced following for {self.user.username}: +{len(to_add)}, -{len(to_remove)}")
         self.success = True
 
 
