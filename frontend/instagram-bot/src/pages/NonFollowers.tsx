@@ -11,6 +11,8 @@ type Props = {
   lastFollowingScan: string | null;
   botStatus: "success" | "error" | "no_change" | "";
   newDataDetected: boolean;
+  step: "idle" | "waiting" | "ready";
+  setStep: React.Dispatch<React.SetStateAction<"idle" | "waiting" | "ready">>;
 };
 
 const NonFollowers: React.FC<Props> = ({
@@ -20,7 +22,10 @@ const NonFollowers: React.FC<Props> = ({
   lastFollowingScan,
   botStatus,
   newDataDetected,
+  step,
+  setStep,
 }) => {
+
   const [nonFollowers, setNonFollowers] = useState<NonFollower[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -49,7 +54,7 @@ const NonFollowers: React.FC<Props> = ({
             Authorization: `Bearer ${token}`,
           },
         });
-  
+
         if (res.data.new_data) {
           setNewDataDetected(true);
         }
@@ -57,16 +62,11 @@ const NonFollowers: React.FC<Props> = ({
         console.error("⚠️ Error checking new data flag:", err);
       }
     };
-  
+
     // ✅ Run immediately on mount
     checkNewDataFlag();
-  
-    // 🔁 Then start interval polling
-    const interval = setInterval(checkNewDataFlag, 5000);
-  
-    return () => clearInterval(interval);
   }, []);
-  
+
   const fetchNonFollowers = async () => {
     setLoading(true);
     try {
@@ -125,19 +125,26 @@ const NonFollowers: React.FC<Props> = ({
 
   const unfollowUsers = async () => {
     setLoading(true);
+    setStep("waiting"); // tell parent to disable ready button, etc.
+
     try {
-      await axios.post("/api/unfollow-non-followers", null, {
+      await axios.post("http://127.0.0.1:8000/unfollow", null, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+
       await fetchNonFollowers();
       setMessage("🎉 Unfollowed users successfully.");
+      setStep("idle"); // restore state
     } catch (error) {
       setMessage("⚠️ Failed to unfollow.");
+      setStep("idle");
     }
+
     setLoading(false);
   };
+
 
   useEffect(() => {
     fetchNonFollowers();
@@ -177,26 +184,36 @@ const NonFollowers: React.FC<Props> = ({
             </Button>
           </div>
 
-          <ul className="list-group">
-            {nonFollowers.map((user) => (
-              <li
-                key={user.id}
-                className="list-group-item d-flex justify-content-between align-items-center"
-              >
-                {user.username}
-                <Button
-                  variant="outline-danger"
-                  size="sm"
-                  onClick={() => {
-                    deleteUser(user.id);
-                    setMessage(`✅ Removed ${user.username} successfully.`);
-                  }}
+          <div
+            style={{
+              maxHeight: "400px",         // Cap height when list is long
+              overflowY: "auto",          // Only scroll if needed
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              padding: "0",
+            }}
+          >
+            <ul className="list-group mb-0">
+              {nonFollowers.map((user) => (
+                <li
+                  key={user.id}
+                  className="list-group-item d-flex justify-content-between align-items-center"
                 >
-                  −
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  {user.username}
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    onClick={() => {
+                      deleteUser(user.id);
+                      setMessage(`✅ Removed ${user.username} successfully.`);
+                    }}
+                  >
+                    −
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </div>

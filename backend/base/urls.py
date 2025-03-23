@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .views import check_new_data_flag, confirm_bot_ready, generateNonFollowersList, get_non_followers, delete_non_follower, get_user_follow_stats, run_instagram_followers_script, update_profile, run_instagram_following_script
+from .views import check_new_data_flag, confirm_bot_ready, generateNonFollowersList, get_non_followers, delete_non_follower, get_user_follow_stats, run_instagram_followers_script, run_unfollow_non_followers_script, update_profile, run_instagram_following_script
 
 from . import views
 urlpatterns = [
@@ -13,6 +13,7 @@ urlpatterns = [
     path('update-profile', update_profile, name='update_profile'),
     path('get-following', run_instagram_following_script, name='run-following-script'),
     path('get-followers', run_instagram_followers_script),
+    path('unfollow', run_unfollow_non_followers_script, name='run_unfollow_non_followers'),
     path('confirm-bot-ready', confirm_bot_ready),
     path('follow-stats', get_user_follow_stats),
     path('check-data', check_new_data_flag),

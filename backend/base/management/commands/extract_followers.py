@@ -114,7 +114,7 @@ class InstagramFollowers:
 
         Follower.objects.filter(user=self.user, username__in=to_remove).delete()
         
-        if to_add or to_remove:
+        if self.followers:
             print("📌 Change detected! Creating frontend trigger flag.")
             flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{self.user.id}.flag")
             with open(flag_path, "w") as f:
@@ -122,7 +122,7 @@ class InstagramFollowers:
 
 
         print(f"✅ Synced followers for {self.user.username}: +{len(to_add)}, -{len(to_remove)}")
-        self.success = True
+        self.success = len(self.followers) > 0
 
 
     def run(self):

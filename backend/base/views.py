@@ -264,3 +264,42 @@ def check_new_data_flag(request):
 
     return Response({"new_data": False})
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def run_unfollow_non_followers_script(request):
+    user = request.user
+    user_id = user.id
+
+    # Count before unfollowing
+    before_count = NonFollower.objects.filter(user=user).count()
+
+    try:
+        # Run the bot
+        subprocess.run(
+            ['python', 'manage.py', 'unfollow', str(user_id)],
+            check=True
+        )
+
+        # Count after
+        after_count = NonFollower.objects.filter(user=user).count()
+
+        if after_count < before_count:
+            return Response({
+                'status': 'success',
+                'message': f'✅ Unfollowed {before_count - after_count} users successfully.',
+                'before_count': before_count,
+                'after_count': after_count,
+            })
+        else:
+            return Response({
+                'status': 'no_change',
+                'message': '⚠️ Bot ran successfully, but no users were unfollowed.',
+                'before_count': before_count,
+                'after_count': after_count,
+            })
+
+    except subprocess.CalledProcessError:
+        return Response({
+            'status': 'error',
+            'message': f'❌ Unfollow script failed for user {user_id}.'
+        }, status=500)

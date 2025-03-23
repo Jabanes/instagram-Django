@@ -262,6 +262,8 @@ const Dashboard = () => {
           lastFollowingScan={lastFollowingScan}
           botStatus={botStatus}
           newDataDetected={newDataDetected}
+          step={step}
+          setStep={setStep}
         />
       </div>
     </div>
