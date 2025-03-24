@@ -13,17 +13,15 @@ type Props = {
   newDataDetected: boolean;
   step: "idle" | "waiting" | "ready";
   setStep: React.Dispatch<React.SetStateAction<"idle" | "waiting" | "ready">>;
+  checkNewDataFlag: () => void;
 };
+
 
 const NonFollowers: React.FC<Props> = ({
   followersCount,
   followingCount,
-  lastFollowersScan,
-  lastFollowingScan,
-  botStatus,
-  newDataDetected,
-  step,
   setStep,
+  checkNewDataFlag,
 }) => {
 
   const [nonFollowers, setNonFollowers] = useState<NonFollower[]>([]);
@@ -33,6 +31,8 @@ const NonFollowers: React.FC<Props> = ({
   const [newDataFlag, setNewDataDetected] = useState<boolean>(false);
 
   const token = localStorage.getItem("token");
+
+  
 
   // Label logic
   useEffect(() => {
@@ -47,23 +47,6 @@ const NonFollowers: React.FC<Props> = ({
 
   // Poll for backend flag that notifies about new data
   useEffect(() => {
-    const checkNewDataFlag = async () => {
-      try {
-        const res = await axios.get("http://127.0.0.1:8000/check-data", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (res.data.new_data) {
-          setNewDataDetected(true);
-        }
-      } catch (err) {
-        console.error("⚠️ Error checking new data flag:", err);
-      }
-    };
-
-    // ✅ Run immediately on mount
     checkNewDataFlag();
   }, []);
 
@@ -116,7 +99,6 @@ const NonFollowers: React.FC<Props> = ({
       });
 
       setNonFollowers(nonFollowers.filter((user) => user.id !== id));
-      setMessage("✅ Removed user from list.");
     } catch (error) {
       setMessage("⚠️ Could not delete user.");
       console.error("Delete error:", error);

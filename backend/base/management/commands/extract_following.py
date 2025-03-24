@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+import pandas as pd
 from base.models import Following
 from django.contrib.auth.models import User
 from selenium import webdriver
@@ -97,32 +98,48 @@ class InstagramFollowing:
             print("⚠️ No user found. Cannot save to database.")
             return
         if not self.following:
-            print(f"❌ No following data extracted for {self.user.username}. Keeping existing data untouched.")
+            print(f"❌ No following extracted for {self.user.username}. Keeping existing data untouched.")
             return
 
         print(f"🔍 Fetching current DB following for {self.user.username}...")
-        current_following = set(Following.objects.filter(user=self.user).values_list("username", flat=True))
-        to_add = self.following - current_following
-        to_remove = current_following - self.following
+        # Fetch current following as a DataFrame for comparison
+        current_following = pd.DataFrame(Following.objects.filter(user=self.user).values_list("username", flat=True), columns=["username"])
 
-        print(f"➕ New followings to add: {to_add}")
-        print(f"➖ Old followings to remove: {to_remove}")
+        # Store the before-following data
+        self.before_following = current_following
 
+        # Store the after-following data
+        self.after_following = pd.DataFrame(list(self.following), columns=["username"])
+
+        # Compare the two dataframes
+        merged = pd.merge(self.before_following, self.after_following, on="username", how="outer", indicator=True)
+
+        to_add = merged[merged["_merge"] == "right_only"]["username"]
+        to_remove = merged[merged["_merge"] == "left_only"]["username"]
+
+
+        print(f"➕ New following to add: {to_add}")
+        print(f"➖ Old following to remove: {to_remove}")
+
+        # Add new following
         Following.objects.bulk_create([
             Following(user=self.user, username=username)
             for username in to_add
         ])
 
+        # Remove old following
         Following.objects.filter(user=self.user, username__in=to_remove).delete()
 
-        if self.following:
+        # Set the flag only if there's new data
+        if not to_add.empty or not to_remove.empty:
             print("📌 Change detected! Creating frontend trigger flag.")
             flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{self.user.id}.flag")
             with open(flag_path, "w") as f:
                 f.write("new_data")
-       
+
         print(f"✅ Synced following for {self.user.username}: +{len(to_add)}, -{len(to_remove)}")
         self.success = len(self.following) > 0
+
 
 
     def run(self):
@@ -134,6 +151,7 @@ class InstagramFollowing:
         self.scroll_to_load_following()
         self.extract_following()
         self.save_results_to_db()
+        print("🎉 Process completed! Followers saved in the database.")
         self.webdriver.quit()
 
 

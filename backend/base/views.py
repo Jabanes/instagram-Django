@@ -1,4 +1,5 @@
-import traceback
+from base.management.commands.extract_followers import InstagramFollowers
+from base.management.commands.extract_following import InstagramFollowing
 from rest_framework.response import Response
 from rest_framework.decorators import api_view,  permission_classes
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -43,6 +44,7 @@ def get_non_followers(request):
         {"id": nf.id, "username": nf.username}
         for nf in non_followers_qs
     ]
+    print(non_followers)
 
     return Response(
         {"non_followers": non_followers},
@@ -133,34 +135,31 @@ def run_instagram_following_script(request):
     before_count = Following.objects.filter(user=user).count()
 
     try:
-        # Run the script (no assignment to a variable)
-        subprocess.run(
-            ['python', 'manage.py', 'extract_following', str(user_id)],
-            check=True
-        )
+        # Initialize the Instagramfollowing class
+        bot = InstagramFollowing(user=user)
 
-        # Step 2: Count following AFTER the scan
-        after_count = Following.objects.filter(user=user).count()
+        # Run the extraction and save results to DB
+        bot.run()
 
-        user.scan_info.last_following_scan = now()
-        user.scan_info.save()
-        print(f"saved last following_scan: {now()}")
+        # Check if the process was successful
+        if bot.success:
+            after_count = Following.objects.filter(user=user).count()
+            user.scan_info.last_following_scan = now()
+            user.scan_info.save()
+            print(f"saved last following scan: {now()}")
 
-        if after_count > before_count:
-            
-            
             return Response({
                 'status': 'success',
-                'message': f'✅ Saved {after_count} following users to the database.',
+                'message': f'✅ Saved {after_count} following to the database.',
                 'before_count': before_count,
                 'after_count': after_count,
             })
         else:
             return Response({
-                 'status': 'no_change',
+                'status': 'no_change',
                 'message': '⚠️ Bot ran successfully, but no new following data was saved.',
                 'before_count': before_count,
-                'after_count': after_count,
+                'after_count': before_count,  # No change in following count
             })
 
     except subprocess.CalledProcessError:
@@ -179,36 +178,33 @@ def run_instagram_followers_script(request):
     before_count = Follower.objects.filter(user=user).count()
 
     try:
-        subprocess.run(
-            ['python', 'manage.py', 'extract_followers', str(user_id)],
-            check=True
-        )
+        # Initialize the InstagramFollowers class
+        bot = InstagramFollowers(user=user)
 
-        # Step 2: Count followers AFTER the scan
-        after_count = Follower.objects.filter(user=user).count()
-        user.scan_info.last_followers_scan = now()
-        user.scan_info.save()
-        print(f"saved last followers_scan: {now()}")
+        # Run the extraction and save results to DB
+        bot.run()
 
-        if after_count > before_count:
-            
+        # Check if the process was successful
+        if bot.success:
+            after_count = Follower.objects.filter(user=user).count()
+            user.scan_info.last_followers_scan = now()
+            user.scan_info.save()
+            print(f"saved last followers scan: {now()}")
 
             return Response({
                 'status': 'success',
-                'message': f'✅ Saved {after_count} following users to the database.',
+                'message': f'✅ Saved {after_count} followers to the database.',
                 'before_count': before_count,
                 'after_count': after_count,
             })
         else:
             return Response({
                 'status': 'no_change',
-                'message': '⚠️ Bot ran successfully, but no new following data was saved.',
+                'message': '⚠️ Bot ran successfully, but no new followers data was saved.',
                 'before_count': before_count,
-                'after_count': after_count,
-            })  # 👈 no error status
+                'after_count': before_count,  # No change in followers count
+            })
 
-
-            
     except subprocess.CalledProcessError:
         return Response({
             'status': 'error',

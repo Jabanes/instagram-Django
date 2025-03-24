@@ -11,6 +11,23 @@ const Dashboard = () => {
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
   const [newDataDetected, setNewDataDetected] = useState(false);
 
+  const token = localStorage.getItem("token");
+
+  const checkNewDataFlag = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/check-data", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+  
+        if (res.data.new_data) {
+          setNewDataDetected(true);
+        }
+      } catch (err) {
+        console.error("⚠️ Error checking new data flag:", err);
+      }
+    };
 
 
   useEffect(() => {
@@ -89,19 +106,21 @@ const Dashboard = () => {
           },
         }
       );
-
+      
       const { status, before_count, after_count } = response.data;
 
       if (status === "success" || status === "no_change") {
         if (after_count !== before_count) {
           setNewDataDetected(true);
         }
-  
+        
         setBotStatus(status);
         await fetchStats();
       } else {
         setBotStatus("error");
       }
+      checkNewDataFlag()
+
     } catch (err) {
       console.error(err);
       setBotStatus("error");
@@ -125,7 +144,7 @@ const Dashboard = () => {
           },
         }
       );
-
+      
       const { status } = response.data;
 
       if (status === "success") {
@@ -137,6 +156,8 @@ const Dashboard = () => {
       } else {
         setBotStatus("error");
       }
+      checkNewDataFlag()
+      
     } catch (err) {
       console.error(err);
       setBotStatus("error");
@@ -264,6 +285,7 @@ const Dashboard = () => {
           newDataDetected={newDataDetected}
           step={step}
           setStep={setStep}
+          checkNewDataFlag={checkNewDataFlag}
         />
       </div>
     </div>

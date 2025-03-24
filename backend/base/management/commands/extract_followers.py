@@ -10,6 +10,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 import tempfile
+import pandas as pd
+
+import pandas as pd
 
 class InstagramFollowers:
     '''
@@ -19,9 +22,13 @@ class InstagramFollowers:
         self.time_sleep = time_sleep
         self.followers = set()
         self.user = user  # Django user
+        self.success = False
+        self.before_followers = pd.DataFrame()  # Dataframe to store before scan data
+        self.after_followers = pd.DataFrame()   # Dataframe to store after scan data
+
+        # Setup WebDriver
         service = Service(ChromeDriverManager().install())
         self.webdriver = webdriver.Chrome(service=service)
-        self.success = False
 
     def open_instagram(self) -> None:
         '''
@@ -29,7 +36,6 @@ class InstagramFollowers:
         '''
         self.webdriver.get("https://www.instagram.com/")
         print("🚀 Log into Instagram manually, then press ENTER here.")
-
         flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{self.user.id}.flag")
 
         if os.path.exists(flag_path):
@@ -100,30 +106,43 @@ class InstagramFollowers:
             return
 
         print(f"🔍 Fetching current DB followers for {self.user.username}...")
-        current_followers = set(Follower.objects.filter(user=self.user).values_list("username", flat=True))
-        to_add = self.followers - current_followers
-        to_remove = current_followers - self.followers
+        # Fetch current followers as a DataFrame for comparison
+        current_followers = pd.DataFrame(Follower.objects.filter(user=self.user).values_list("username", flat=True), columns=["username"])
+
+        # Store the before-followers data
+        self.before_followers = current_followers
+
+        # Store the after-followers data
+        self.after_followers = pd.DataFrame(list(self.followers), columns=["username"])
+
+        # Compare the two dataframes
+        merged = pd.merge(self.before_followers, self.after_followers, on="username", how="outer", indicator=True)
+
+        to_add = merged[merged["_merge"] == "right_only"]["username"]
+        to_remove = merged[merged["_merge"] == "left_only"]["username"]
+
 
         print(f"➕ New followers to add: {to_add}")
         print(f"➖ Old followers to remove: {to_remove}")
 
+        # Add new followers
         Follower.objects.bulk_create([
             Follower(user=self.user, username=username)
             for username in to_add
         ])
 
+        # Remove old followers
         Follower.objects.filter(user=self.user, username__in=to_remove).delete()
-        
-        if self.followers:
+
+        # Set the flag only if there's new data
+        if not to_add.empty or not to_remove.empty:
             print("📌 Change detected! Creating frontend trigger flag.")
             flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{self.user.id}.flag")
             with open(flag_path, "w") as f:
                 f.write("new_data")
 
-
         print(f"✅ Synced followers for {self.user.username}: +{len(to_add)}, -{len(to_remove)}")
         self.success = len(self.followers) > 0
-
 
     def run(self):
         '''
