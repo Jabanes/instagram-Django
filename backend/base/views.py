@@ -70,6 +70,14 @@ def generateNonFollowersList(request):
             for nf in non_followers_qs
         ]
 
+        user_id = request.user.id
+        flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{user_id}.flag")
+
+        if os.path.exists(flag_path):
+            os.remove(flag_path)  # Reset after detection
+            return Response({"status": "Flag reset successfully."})
+        
+    
         return Response(
             {
                 "status": "✅ Script executed via subprocess",
@@ -259,7 +267,6 @@ def check_new_data_flag(request):
     flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{user_id}.flag")
 
     if os.path.exists(flag_path):
-        os.remove(flag_path)  # Reset after detection
         return Response({"new_data": True})
 
     return Response({"new_data": False})
