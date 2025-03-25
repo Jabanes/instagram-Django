@@ -4,6 +4,7 @@ import axios from "axios";
 import { Button, Spinner, Alert } from "react-bootstrap";
 import { NonFollower } from "../models/NonFollower";
 
+
 type Props = {
   followersCount: number | 0;
   followingCount: number | 0;
@@ -32,7 +33,7 @@ const NonFollowers: React.FC<Props> = ({
 
   const token = localStorage.getItem("token");
 
-  
+
 
   // Label logic
   useEffect(() => {
@@ -133,70 +134,69 @@ const NonFollowers: React.FC<Props> = ({
   }, []);
 
   return (
-    <div>
+    <div className="mt-10 relative z-10 w-full max-w-3xl mx-auto">
       {followingCount > 0 && followersCount > 0 && (
-        <div className="container mt-4">
-          <Button onClick={generateList} disabled={loading}>
-            {loading ? <Spinner size="sm" /> : buttonLabel}
-          </Button>
+        <div className="text-center mb-6">
+          <button
+            onClick={generateList}
+            disabled={loading}
+            className="bg-pink-600 hover:bg-pink-700 text-white font-semibold px-6 py-2 rounded-lg transition disabled:opacity-50"
+          >
+            {loading ? "Loading..." : buttonLabel}
+          </button>
         </div>
       )}
 
       {nonFollowers.length > 0 && (
-        <div>
-          <h3 className="mt-4">
-            Found {nonFollowers.length} People who don't follow you back
+        <>
+          <h3 className="text-white text-2xl font-bold mb-4">
+            Found {nonFollowers.length} people who don’t follow you back
           </h3>
 
           {newDataFlag && (
-            <Alert variant="warning" className="mt-3">
+            <div className="bg-yellow-200 text-yellow-800 rounded-lg px-4 py-2 mb-3">
               ⚠️ New data detected. Generate a new list?
-            </Alert>
+            </div>
           )}
 
-          {message && <Alert variant="info">{message}</Alert>}
+          {message && (
+            <div className="bg-blue-100 text-blue-800 rounded-lg px-4 py-2 mb-3">
+              {message}
+            </div>
+          )}
 
-          <div className="d-flex gap-2 mb-3">
-            <Button
-              variant="danger"
+          <div className="flex justify-center mb-4">
+            <button
               onClick={unfollowUsers}
               disabled={loading}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
             >
               Unfollow Listed Users
-            </Button>
+            </button>
           </div>
 
-          <div
-            style={{
-              maxHeight: "400px",         // Cap height when list is long
-              overflowY: "auto",          // Only scroll if needed
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              padding: "0",
-            }}
-          >
-            <ul className="list-group mb-0">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md overflow-y-auto max-h-[400px] border border-gray-200">
+            <ul className="divide-y divide-gray-300">
               {nonFollowers.map((user) => (
                 <li
                   key={user.id}
-                  className="list-group-item d-flex justify-content-between align-items-center"
+                  className="flex justify-between items-center px-4 py-3"
                 >
-                  {user.username}
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
+                  <span className="text-gray-800">{user.username}</span>
+                  <button
                     onClick={() => {
                       deleteUser(user.id);
                       setMessage(`✅ Removed ${user.username} successfully.`);
                     }}
+                    className="text-red-600 hover:text-red-800 font-bold text-lg"
                   >
                     −
-                  </Button>
+                  </button>
                 </li>
               ))}
             </ul>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

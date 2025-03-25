@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import NonFollowers from './NonFollowers';
+import { Card, CardContent } from "../components/UI/card";
+import { Button } from "../components/UI/button";
+
 
 const Dashboard = () => {
   const [step, setStep] = useState<"idle" | "waiting" | "ready">("idle");
@@ -189,105 +192,103 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="text-center mt-5">
-      <h2>Dashboard</h2>
+    <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex flex-col items-center justify-start py-16 px-4 relative overflow-hidden">
+      {/* Floating animated icons */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        {Array.from({ length: 15 }).map((_, i) => (
+          <div
+            key={i}
+            className={`absolute animate-float animation-delay-${i * 200} text-white opacity-20 text-3xl`}
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDuration: `${4 + Math.random() * 4}s`,
+              top: `${Math.random() * 100}%`,
+            }}
+          >
+            {Math.random() > 0.5 ? '❤️' : '👤'}
+          </div>
+        ))}
+      </div>
 
-      <div className="d-flex justify-content-center gap-4 mt-4 flex-wrap">
-        {/* Followers card */}
+      <div className="relative z-10 w-full max-w-4xl text-center">
+        <h2 className="text-4xl font-bold text-white drop-shadow mb-8">Dashboard</h2>
 
-        <div className="card text-center shadow-sm" style={{ width: '14rem' }}>
-          <div className="card-body">
-            <h5 className="card-title">Followers</h5>
-            {lastFollowersScan && (
-              <p className="mt-2 text-muted small">
-                Last scanned: {lastFollowersScan}
-              </p>
-            )}
-            <p className="card-text fs-4">{followersCount ?? '-'}</p>
+        <div className="flex flex-wrap justify-center gap-6">
+          <div className="bg-white/90 backdrop-blur rounded-xl shadow-xl p-6 w-64">
+            <h5 className="text-xl font-semibold text-pink-600">Followers</h5>
+            {lastFollowersScan && <p className="mt-2 text-gray-600 text-sm">Last scanned: {lastFollowersScan}</p>}
+            <p className="text-3xl font-bold my-3 text-gray-800">{followersCount ?? '-'}</p>
             {step === "idle" && (
-              <button className="btn btn-primary btn-sm" onClick={getFollowers}>
+              <button className="bg-pink-600 hover:bg-pink-700 text-white font-semibold px-4 py-2 rounded-md transition" onClick={getFollowers}>
                 Scan Followers
               </button>
             )}
           </div>
-        </div>
 
-
-        <div className="card text-center shadow-sm" style={{ width: '14rem' }}>
-          <div className="card-body">
-            <h5 className="card-title">Following</h5>
-            {/* Following card */}
-            {lastFollowingScan && (
-              <p className="mt-2 text-muted small">
-                Last scanned: {lastFollowingScan}
-              </p>
-            )}
-            <p className="card-text fs-4">{followingCount ?? '-'}</p>
+          <div className="bg-white/90 backdrop-blur rounded-xl shadow-xl p-6 w-64">
+            <h5 className="text-xl font-semibold text-pink-600">Following</h5>
+            {lastFollowingScan && <p className="mt-2 text-gray-600 text-sm">Last scanned: {lastFollowingScan}</p>}
+            <p className="text-3xl font-bold my-3 text-gray-800">{followingCount ?? '-'}</p>
             {step === "idle" && (
-              <button className="btn btn-primary btn-sm" onClick={getFollowing}>
+              <button className="bg-pink-600 hover:bg-pink-700 text-white font-semibold px-4 py-2 rounded-md transition" onClick={getFollowing}>
                 Scan Following
               </button>
             )}
           </div>
         </div>
+
+        {/* Ready state */}
+        <div className="mt-10">
+          {step === "waiting" && (
+            <>
+              <button
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-md"
+                onClick={() => {
+                  const proceed = window.confirm("⚠️ Make sure you are logged into Instagram and on your profile page.\nClick OK to continue.");
+                  if (proceed) {
+                    handleConfirmReady();
+                  }
+                }}
+              >
+                Ready
+              </button>
+              <p className="text-sm text-white mt-2">CLICK ONLY AFTER LOG IN AND ON PROFILE</p>
+            </>
+          )}
+          {step === "ready" && <p className="text-white text-lg font-medium mt-4">⏳ Bot is running...</p>}
+
+          {botStatus === "success" && <div className="mt-4 text-green-600 font-semibold">✅ Bot completed successfully.</div>}
+          {botStatus === "error" && <div className="mt-4 text-red-600 font-semibold">❌ Bot failed. No data was saved.</div>}
+          {botStatus === "no_change" && <div className="mt-4 text-yellow-600 font-semibold">⚠️ Bot ran successfully, but no new data was saved.</div>}
+        </div>
+
+        <div className="mt-10">
+          <NonFollowers
+            followersCount={followersCount}
+            followingCount={followingCount}
+            lastFollowersScan={lastFollowersScan}
+            lastFollowingScan={lastFollowingScan}
+            botStatus={botStatus}
+            newDataDetected={newDataDetected}
+            step={step}
+            setStep={setStep}
+            checkNewDataFlag={checkNewDataFlag}
+          />
+        </div>
       </div>
 
-      {/* Ready state */}
-      <div className="mt-4">
-        {step === "waiting" && (
-          <>
-            <button
-              className="btn btn-success"
-              onClick={() => {
-                const proceed = window.confirm(
-                  "⚠️ Make sure you are logged into Instagram and on your profile page.\nClick OK to continue."
-                );
-                if (proceed) {
-                  handleConfirmReady();
-                }
-              }}
-            >
-              Ready
-            </button>
-            <br />
-            <small className="text-muted">
-              CLICK ONLY AFTER LOG IN AND ON PROFILE
-            </small>
-          </>
-
-
-        )}
-        {step === "ready" && <p>⏳ Bot is running...</p>}
-
-        {/* Alerts */}
-        {botStatus === "success" && (
-          <div className="alert alert-success mt-4" role="alert">
-            ✅ Bot completed successfully.
-          </div>
-        )}
-        {botStatus === "error" && (
-          <div className="alert alert-danger mt-4" role="alert">
-            ❌ Bot failed. No data was saved.
-          </div>
-        )}
-
-        {botStatus === "no_change" && (
-          <div className="alert alert-warning mt-4" role="alert">
-            ⚠️ Bot ran successfully, but no new data was saved.
-          </div>
-        )}
-        <NonFollowers
-          followersCount={followersCount}
-          followingCount={followingCount}
-          lastFollowersScan={lastFollowersScan}
-          lastFollowingScan={lastFollowingScan}
-          botStatus={botStatus}
-          newDataDetected={newDataDetected}
-          step={step}
-          setStep={setStep}
-          checkNewDataFlag={checkNewDataFlag}
-        />
-      </div>
+      <style>
+        {`
+          @keyframes float {
+            0% { transform: translateY(0); opacity: 0.2; }
+            50% { transform: translateY(-20px); opacity: 0.5; }
+            100% { transform: translateY(0); opacity: 0.2; }
+          }
+          .animate-float {
+            animation: float infinite ease-in-out;
+          }
+        `}
+      </style>
     </div>
   );
 };
