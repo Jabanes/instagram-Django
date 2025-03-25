@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import NonFollowers from './NonFollowers';
-import { Card, CardContent } from "../components/UI/card";
-import { Button } from "../components/UI/button";
+import Confirm from "../components/Confirm"
 
 
 const Dashboard = () => {
@@ -13,24 +12,25 @@ const Dashboard = () => {
   const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(null);
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
   const [newDataDetected, setNewDataDetected] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const token = localStorage.getItem("token");
 
   const checkNewDataFlag = async () => {
-      try {
-        const res = await axios.get("http://127.0.0.1:8000/check-data", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
-        if (res.data.new_data) {
-          setNewDataDetected(true);
-        }
-      } catch (err) {
-        console.error("⚠️ Error checking new data flag:", err);
+    try {
+      const res = await axios.get("http://127.0.0.1:8000/check-data", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.data.new_data) {
+        setNewDataDetected(true);
       }
-    };
+    } catch (err) {
+      console.error("⚠️ Error checking new data flag:", err);
+    }
+  };
 
 
   useEffect(() => {
@@ -109,14 +109,14 @@ const Dashboard = () => {
           },
         }
       );
-      
+
       const { status, before_count, after_count } = response.data;
 
       if (status === "success" || status === "no_change") {
         if (after_count !== before_count) {
           setNewDataDetected(true);
         }
-        
+
         setBotStatus(status);
         await fetchStats();
       } else {
@@ -147,7 +147,7 @@ const Dashboard = () => {
           },
         }
       );
-      
+
       const { status } = response.data;
 
       if (status === "success") {
@@ -160,7 +160,7 @@ const Dashboard = () => {
         setBotStatus("error");
       }
       checkNewDataFlag()
-      
+
     } catch (err) {
       console.error(err);
       setBotStatus("error");
@@ -243,16 +243,22 @@ const Dashboard = () => {
             <>
               <button
                 className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-md"
-                onClick={() => {
-                  const proceed = window.confirm("⚠️ Make sure you are logged into Instagram and on your profile page.\nClick OK to continue.");
-                  if (proceed) {
-                    handleConfirmReady();
-                  }
-                }}
+                onClick={() => setShowConfirm(true)}
               >
                 Ready
               </button>
-              <p className="text-sm text-white mt-2">CLICK ONLY AFTER LOG IN AND ON PROFILE</p>
+              <Confirm
+                open={showConfirm}
+                title="Are you logged into your profile?"
+                message="⚠️ Make sure you are logged into Instagram and on your profile page before starting. Proceed with caution."
+                confirmText="Yes, I'm on my profile"
+                cancelText="Cancel"
+                onConfirm={() => {
+                  handleConfirmReady();
+                  setShowConfirm(false);
+                }}
+                onCancel={() => setShowConfirm(false)}
+              />
             </>
           )}
           {step === "ready" && <p className="text-white text-lg font-medium mt-4">⏳ Bot is running... DONT CLOSE / MINIMIZE THE WINDOW</p>}

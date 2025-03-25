@@ -1,9 +1,8 @@
 // src/components/nonFollowers.tsx
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { Button, Spinner, Alert } from "react-bootstrap";
 import { NonFollower } from "../models/NonFollower";
-
+import Confirm from "../components/Confirm"
 
 type Props = {
   followersCount: number | 0;
@@ -30,6 +29,7 @@ const NonFollowers: React.FC<Props> = ({
   const [message, setMessage] = useState<string | null>(null);
   const [buttonLabel, setButtonLabel] = useState("Create Non-Follower List");
   const [newDataFlag, setNewDataDetected] = useState<boolean>(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const token = localStorage.getItem("token");
 
@@ -167,14 +167,29 @@ const NonFollowers: React.FC<Props> = ({
 
           <div className="flex justify-center mb-4">
             <button
-              onClick={unfollowUsers}
-              disabled={loading}
+              onClick={() => setShowConfirm(true)}
               className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
             >
               Unfollow Listed Users
             </button>
-          </div>
 
+            <Confirm
+              open={showConfirm}
+              title="Unfollow listed users?"
+              message="⚠️ You are about to unfollow all listed users. This action cannot be undone. Are you sure you want to proceed?"
+              confirmText="Yes, Unfollow"
+              cancelText="Cancel"
+              onConfirm={() => {
+                unfollowUsers();
+                setShowConfirm(false);
+              }}
+              onCancel={() => setShowConfirm(false)}
+            />
+
+          </div>
+          <h1 className="text-white text-1xl font-bold mb-4">
+            remove users to exclude on unfollow proccess:
+          </h1>
           <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md overflow-y-auto max-h-[400px] border border-gray-200">
             <ul className="divide-y divide-gray-300">
               {nonFollowers.map((user) => (
