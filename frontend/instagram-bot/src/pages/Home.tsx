@@ -40,15 +40,15 @@ const Home = () => {
         ))}
       </div>
 
-      <button
-        onClick={() => setShowPopup(true)}
-        className="fixed top-20 right-5 z-50 bg-white/90 text-pink-600 p-3 rounded-full shadow-md hover:bg-white"
-        >
-        <BookOpenIcon className="w-5 h-5" />
-      </button>
 
-      <div className="relative z-10 max-w-4xl text-center text-white space-y-8 p-6 bg-white/10 rounded-xl shadow-xl backdrop-blur">
+
+      <div className="relative z-10 max-w-4xl mx-auto text-center text-white space-y-8 p-6 bg-white/10 rounded-xl shadow-xl backdrop-blur">
         <h1 className="text-5xl font-extrabold drop-shadow-xl text-white">Welcome to InstaBot</h1>
+        <button
+          onClick={() => setShowPopup(true)}
+          className="absolute -top-4 left-4 z-20 bg-white/90 text-pink-600 p-3 rounded-full shadow-md hover:bg-white">
+          <BookOpenIcon className="w-5 h-5" />
+        </button>
         <p className="text-xl font-medium leading-relaxed text-white/90">
           The ultimate Instagram companion to track and manage your social circle. Automatically detect and unfollow users who don’t follow you back.
         </p>
@@ -56,12 +56,23 @@ const Home = () => {
         <div className="text-left text-white/90">
           <h2 className="text-2xl font-semibold mb-2">How it works:</h2>
           <ol className="list-decimal list-inside space-y-2">
-            <li>Login to your Instagram account through the bot interface.</li>
-            <li>Click "Scan Followers" to pull your latest follower list.</li>
-            <li>Click "Scan Following" to collect who you're following.</li>
-            <li>Generate the non-followers list and review the results.</li>
-            <li>after editing the list run the script to unfollow each user from the list one by one.</li>
-            <li>You will be surprised who does't follow you back, Enjoy the show !</li>
+            <li>Create an account on the platform.</li>
+            <li>Choose an action from the dashboard.
+
+              ⚠️ You will need to log in to your Instagram account manually each time you choose an action</li>
+            <li>Click "Scan Followers" to fetch your most recent followers.</li>
+            <li>Click "Scan Following" to fetch the list of people you follow.</li>
+            <li>Once logged in and on your Instagram profile page, click "Ready" to begin the scan.</li>
+            <li>After both scans are complete, a new button will appear:
+              ➤ "Generate Non-Followers List"
+              This will show users you follow who don’t follow you back.</li>
+            <li>Review and edit the list to remove anyone you don't want to unfollow.</li>
+            <li>you can edit the list to exclude and ignore users that YOU DONT WANT TO UNFOLLOW.</li>
+            <li>⚠️ You cannot undo individual deletions, but you can reset the list anytime.
+              The reset button will regenerate the list based on your current followers/following.</li>
+            <li>When you’re ready, click "Unfollow" to start unfollowing users one by one automatically.</li>
+            <li>You might be surprised who’s not following you back...
+              Enjoy the cleanup! 🎉</li>
 
           </ol>
         </div>
@@ -84,14 +95,17 @@ const Home = () => {
           <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xl text-gray-800 relative">
             <h2 className="text-2xl font-bold text-pink-600 mb-4">Rules & Guidelines</h2>
             <p className="mb-2 text-sm">
-              Please read and understand the following before using InstaBot:
+            <strong>Please read and understand the following before using InstaBot:</strong>
             </p>
             <ul className="list-disc list-inside space-y-1 text-sm mb-4">
-              <li>This bot may conflict with Instagram's terms of service.</li>
-              <li>The unfollow process is intentionally slow to mimic human behavior.</li>
-              <li>It is strongly recommended to run the bot overnight if you have many followers.</li>
-              <li>By using this bot, you accept all risks involved including possible restrictions or bans.</li>
-              <li>This tool is made by one developer and still in development, so expect bugs or limitations.</li>
+              <li>This bot may violate Instagram's Terms of Service. Use at your own risk.</li>
+              <li>The unfollow / scan process is intentionally slow to mimic human behavior and avoid detection.</li>
+              <li>If you have a large number of followings / followers, it's recommended to run the bot overnight.</li>
+              <li>By using this bot, you accept all associated risks, including the possibility of account restrictions or bans.</li>
+              <li>The bot is currently supported only on Windows and does not work on mobile devices.</li>
+              <li>Due to frequent updates from Instagram, the bot may occasionally stop working properly.</li>
+              <li>For bug reports or issues, please contact: <strong>jabanes3535@gmail.com</strong></li>
+              <li>This tool is built by a solo developer and is still under active development — bugs and limitations are to be expected.</li>
             </ul>
             <div className="flex justify-between mt-6">
               <Button
