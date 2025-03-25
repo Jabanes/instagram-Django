@@ -33,7 +33,6 @@ const Navbar = () => {
 
     {/* Nav Links */}
     <div className="flex gap-6 items-center text-sm font-medium text-gray-700">
-      <NavLink to="/" label="Home" />
       {isAuthenticated && <NavLink to="/profile" label="Profile" />}
       {isAuthenticated && <NavLink to="/dashboard" label="Dashboard" />}
 

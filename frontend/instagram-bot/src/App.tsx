@@ -7,6 +7,8 @@ import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import ChangePassword from './pages/ChangePassword';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
+import AdSides from './components/AdSides';
 import { useAppSelector } from './app/hooks';
 import "./App.css";
 
@@ -16,6 +18,7 @@ function App() {
   return (
     <Router>
       <Navbar />
+      <AdSides />
       <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 relative overflow-hidden py-10">
         {/* Floating background icons */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
@@ -43,6 +46,8 @@ function App() {
             <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
             <Route path="/change-password" element={<ChangePassword />} />
           </Routes>
+          {/* <Footer /> */}
+
         </div>
       </div>
 

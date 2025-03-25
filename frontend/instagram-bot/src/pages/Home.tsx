@@ -6,10 +6,8 @@ const Home = () => {
   const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const hideRulesKey = `hideRules_${token}`;
-    const alreadyAccepted = localStorage.getItem(hideRulesKey);
-    if (!alreadyAccepted) {
+    const alreadyAccepted = localStorage.getItem("hideRules");
+    if (alreadyAccepted !== "true") {
       setShowPopup(true);
     }
   }, []);
@@ -19,10 +17,7 @@ const Home = () => {
   };
 
   const handleDontShowAgain = () => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      localStorage.setItem(`hideRules_${token}`, "true");
-    }
+    localStorage.setItem("hideRules", "true");
     setShowPopup(false);
   };
 
@@ -96,7 +91,7 @@ const Home = () => {
               <li>The unfollow process is intentionally slow to mimic human behavior.</li>
               <li>It is strongly recommended to run the bot overnight if you have many followers.</li>
               <li>By using this bot, you accept all risks involved including possible restrictions or bans.</li>
-              <li>This tool is still in development and may contain bugs or limitations.</li>
+              <li>This tool is made by one developer and still in development, so expect bugs or limitations.</li>
             </ul>
             <div className="flex justify-between mt-6">
               <Button
