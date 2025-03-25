@@ -255,7 +255,7 @@ const Dashboard = () => {
               <p className="text-sm text-white mt-2">CLICK ONLY AFTER LOG IN AND ON PROFILE</p>
             </>
           )}
-          {step === "ready" && <p className="text-white text-lg font-medium mt-4">⏳ Bot is running...</p>}
+          {step === "ready" && <p className="text-white text-lg font-medium mt-4">⏳ Bot is running... DONT CLOSE / MINIMIZE THE WINDOW</p>}
 
           {botStatus === "success" && <div className="mt-4 text-green-600 font-semibold">✅ Bot completed successfully.</div>}
           {botStatus === "error" && <div className="mt-4 text-red-600 font-semibold">❌ Bot failed. No data was saved.</div>}

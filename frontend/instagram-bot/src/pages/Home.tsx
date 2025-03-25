@@ -95,7 +95,7 @@ const Home = () => {
           <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xl text-gray-800 relative">
             <h2 className="text-2xl font-bold text-pink-600 mb-4">Rules & Guidelines</h2>
             <p className="mb-2 text-sm">
-            <strong>Please read and understand the following before using InstaBot:</strong>
+              <strong>Please read and understand the following before using InstaBot:</strong>
             </p>
             <ul className="list-disc list-inside space-y-1 text-sm mb-4">
               <li>This bot may violate Instagram's Terms of Service. Use at your own risk.</li>
@@ -104,6 +104,9 @@ const Home = () => {
               <li>By using this bot, you accept all associated risks, including the possibility of account restrictions or bans.</li>
               <li>The bot is currently supported only on Windows and does not work on mobile devices.</li>
               <li>Due to frequent updates from Instagram, the bot may occasionally stop working properly.</li>
+              <li>You will be asked to log in to Instagram each time you run a scan or unfollow.
+                This is **for your safety** — to ensure your credentials are never saved, shared, or passed through any third-party services, including this website.
+                It’s designed this way intentionally to protect your privacy and build trust.</li>
               <li>For bug reports or issues, please contact: <strong>jabanes3535@gmail.com</strong></li>
               <li>This tool is built by a solo developer and is still under active development — bugs and limitations are to be expected.</li>
             </ul>
