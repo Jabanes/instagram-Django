@@ -1,7 +1,15 @@
+# .gitignore
+
+# Ignore environment and credentials files
 .env
-models_snapshot.py
-__pycache__/
-*.pyc
-*.pyo
-db.sqlite3"backend/firebase-credentials.json" 
 firebase-credentials.json
+backend/firebase-credentials.json
+db.sqlite3
+
+# Ignore Python cache files
+__pycache__/
+**.pyc
+**.pyo
+
+# Ignore model snapshot file
+models_snapshot.py
