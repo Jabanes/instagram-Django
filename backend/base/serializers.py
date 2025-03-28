@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UserScanInfo
+from .firebase_stores import UserScanInfoStore
 import pytz
 
 
@@ -22,7 +22,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         group, created = Group.objects.get_or_create(name="User")
         user.groups.add(group)
-        UserScanInfo.objects.get_or_create(user=user)
+        UserScanInfoStore.objects.get_or_create(user=user)
         return user
 
 

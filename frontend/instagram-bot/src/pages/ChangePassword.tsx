@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAppSelector } from '../app/hooks'; // 👈 import selector
-import { User } from '../models/User';
+import { CustomUser } from '../models/User';
 import { Card, CardContent } from "../components/UI/card";
 import { Button } from "../components/UI/button";
 
@@ -16,7 +16,7 @@ const ChangePassword = () => {
   const navigate = useNavigate();
 
   const token = localStorage.getItem('token');
-  const user = useAppSelector((state) => state.auth.user) as User | null;
+  const user = useAppSelector((state) => state.auth.user) as CustomUser | null;
   const username = user?.username
 
   const handleVerifyCurrentPassword = async () => {

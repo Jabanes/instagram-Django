@@ -17,17 +17,23 @@ export default function InstagramLogin() {
     e.preventDefault();
     try {
       const data = await loginUser(username, password);
+      
+      // Dispatch the login action with the mapped user data
       dispatch(login(data.user));
+
+      // Store the user and access token in localStorage
       localStorage.setItem('token', data.access);
       localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Navigate to the dashboard after successful login
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Signup failed', err);
+      console.error('Login failed', err);
       if (err.response && err.response.data) {
         const errorMessages = Object.values(err.response.data).flat().join('\n');
-        alert(`⚠️ Signup failed:\n${errorMessages}`);
+        alert(`⚠️ Login failed:\n${errorMessages}`);
       } else {
-        alert('⚠️ Signup failed: An unknown error occurred.');
+        alert('⚠️ Login failed: An unknown error occurred.');
       }
     }
   };

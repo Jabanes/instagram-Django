@@ -1,18 +1,23 @@
 import { useState } from 'react'; import { useAppSelector, useAppDispatch } from '../app/hooks';
-import { User } from '../models/User';
+import { CustomUser } from '../models/User';
 import { FaPencilAlt } from 'react-icons/fa';
 import { updateUserProfile } from '../features/auth/authAPI';
 import { updateUser } from '../features/auth/authSlice';
 import { IconBaseProps } from 'react-icons';
+import { User as FirebaseUser, UserMetadata } from 'firebase/auth';
 
 const PencilIcon = FaPencilAlt as React.FC<IconBaseProps>;
 
 const Profile = () => {
-  const user = useAppSelector((state) => state.auth.user) as User | null;
+  const user = useAppSelector((state) => state.auth.user) as CustomUser | null;
   const dispatch = useAppDispatch();
 
   const [editing, setEditing] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState<string>('');
+
+  const formatTimestamp = (ts: any) => {
+    return ts?.seconds ? new Date(ts.seconds * 1000).toLocaleString() : 'N/A';
+  };
 
   if (!user) return null;
 
@@ -50,13 +55,13 @@ const Profile = () => {
   
   const renderRow = (
     label: string,
-    field: keyof User | 'password',
+    field: keyof CustomUser | 'password',
     isPassword = false
   ) => (
     <li className="list-group-item">
       <div className="py-3 flex justify-between items-center">
         <div className="col-4 fw-bold">{label}:</div>
-
+  
         <div className="col-6 text-center">
           {editing === field ? (
             field === 'password' ? (
@@ -73,11 +78,11 @@ const Profile = () => {
             )
           ) : (
             <span>
-              {isPassword ? '••••••••' : user[field as keyof User] || 'N/A'}
+              {isPassword ? '••••••••' : renderUserField(user[field as keyof CustomUser])}
             </span>
           )}
         </div>
-
+  
         <div className="col-2 text-end">
           {editing === field ? (
             field === 'password' ? (
@@ -106,7 +111,7 @@ const Profile = () => {
               onClick={() =>
                 handleEditClick(
                   field,
-                  isPassword ? '' : user[field as keyof User]?.toString()
+                  isPassword ? '' : user[field as keyof CustomUser]?.toString() || ''
                 )
               }
             >
@@ -117,6 +122,15 @@ const Profile = () => {
       </div>
     </li>
   );
+
+  const renderUserField = (value: any) => {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.join(', ');
+    if (value instanceof Date) return value.toISOString();
+    if (value?.seconds) return new Date(value.seconds * 1000).toLocaleString(); // 🔥 Fix timestamp
+    if (value?.lastSignInTime) return `Last sign-in: ${value.lastSignInTime}`;
+    return value ? value.toString() : 'N/A';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex justify-center py-16 px-4 relative overflow-hidden">
@@ -151,11 +165,12 @@ const Profile = () => {
   
         <li className="py-3 flex justify-between items-center">
           <span className="font-semibold text-gray-700">Date Joined:</span>
-          <span className="text-gray-800">{user.date_joined}</span>
+          <span className="text-gray-800">{formatTimestamp(user.date_joined)}</span>
+
         </li>
         <li className="py-3 flex justify-between items-center">
           <span className="font-semibold text-gray-700">Last Login:</span>
-          <span className="text-gray-800">{user.last_login ? user.last_login : 'Never'}</span>
+          <span className="text-gray-800">{formatTimestamp(user.last_login)}</span>
         </li>
         <li className="py-3 flex justify-between items-center">
           <span className="font-semibold text-gray-700">Roles:</span>
