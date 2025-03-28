@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { useAppSelector } from '../app/hooks'; // 👈 import selector
-import { User } from '../models/User';
-import { Card, CardContent } from "../components/UI/card";
-import { Button } from "../components/UI/button";
-
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
+import { auth } from '../app/firebase'; // 👈 make sure this path matches your setup
 
 const ChangePassword = () => {
   const [step, setStep] = useState<1 | 2>(1);
@@ -15,23 +11,23 @@ const ChangePassword = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const token = localStorage.getItem('token');
-  const user = useAppSelector((state) => state.auth.user) as User | null;
-  const username = user?.username
+  const user = auth.currentUser;
 
   const handleVerifyCurrentPassword = async () => {
+    if (!user || !user.email) {
+      setError('⚠️ No user logged in.');
+      return;
+    }
+
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+
     try {
-      await axios.post(
-        'http://127.0.0.1:8000/login',
-        { username, password: currentPassword }, // 👈 include username
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await reauthenticateWithCredential(user, credential);
       setStep(2);
       setError('');
-    } catch {
+    } catch (err) {
+      console.error(err);
       setError('❌ Incorrect current password');
-      console.log(user?.username);
-
     }
   };
 
@@ -40,23 +36,41 @@ const ChangePassword = () => {
       setError('❌ Passwords do not match');
       return;
     }
-
+  
+    if (!user) {
+      setError('⚠️ No user logged in.');
+      return;
+    }
+  
     try {
-      await axios.put(
-        'http://127.0.0.1:8000/update-profile',
-        { password: newPassword },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await updatePassword(user, newPassword);
       alert('✅ Password updated successfully');
       navigate('/profile');
-    } catch {
-      setError('❌ Failed to update password');
+    } catch (err: any) {
+      console.error("Firebase error:", err);
+  
+      // Optional: log full structure
+      // console.log(JSON.stringify(err, null, 2));
+  
+      switch (err.code) {
+        case 'auth/weak-password':
+          setError('❌ Password should be at least 6 characters.');
+          break;
+        case 'auth/requires-recent-login':
+          setError('❌ You need to re-login to change your password.');
+          break;
+        case 'auth/too-many-requests':
+          setError('❌ Too many attempts. Please try again later.');
+          break;
+        default:
+          setError(`❌ ${err.message || 'Failed to update password'}`);
+      }
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Floating animated icons */}
+      {/* Floating icons */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
         {Array.from({ length: 15 }).map((_, i) => (
           <div

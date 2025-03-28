@@ -1,4 +1,4 @@
 export interface NonFollower {
-    id: number;
+    id: string;
     username: string;
   }

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { registerUser } from '../features/auth/authAPI';
+import { useAppDispatch } from '../app/hooks'; // Ensure useAppDispatch is being used for dispatching actions
+import { register } from '../features/auth/authSlice';
 import { Card, CardContent } from "../components/UI/card";
 import { Button } from "../components/UI/button";
 
@@ -13,10 +14,13 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const navigate = useNavigate();
 
+  const dispatch = useAppDispatch();
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await registerUser(username, password, email, firstName, lastName);
+      // Dispatch the register action, which will internally call the API and handle Redux updates
+      await dispatch(register({ email, password, firstName, lastName, username }));
       alert('✅ Account created! You can now log in.');
       navigate('/login');
     } catch (err: any) {

@@ -10,6 +10,7 @@ export default function InstagramLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
+
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
@@ -17,17 +18,23 @@ export default function InstagramLogin() {
     e.preventDefault();
     try {
       const data = await loginUser(username, password);
+
+      // Dispatch the login action with the mapped user data
       dispatch(login(data.user));
+
+      // Store the user and access token in localStorage
       localStorage.setItem('token', data.access);
       localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Navigate to the dashboard after successful login
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Signup failed', err);
+      console.error('Login failed', err);
       if (err.response && err.response.data) {
         const errorMessages = Object.values(err.response.data).flat().join('\n');
-        alert(`⚠️ Signup failed:\n${errorMessages}`);
+        alert(`⚠️ Login failed:\n${errorMessages}`);
       } else {
-        alert('⚠️ Signup failed: An unknown error occurred.');
+        alert('⚠️ Login failed: An unknown error occurred.');
       }
     }
   };
@@ -58,7 +65,7 @@ export default function InstagramLogin() {
           <form className="space-y-4" onSubmit={handleSubmit}>
             <input
               type="text"
-              placeholder="Username"
+              placeholder="Email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
@@ -76,6 +83,9 @@ export default function InstagramLogin() {
           </form>
           <p className="text-sm text-center text-gray-500 mt-4">
             Don’t have an account? <a href="/signup" className="text-pink-600 hover:underline">Sign up</a>
+          </p>
+          <p className="text-sm text-center text-gray-500 mt-1">
+            <a href="/forgot-password" className="text-pink-600 hover:underline">Forgot password?</a>
           </p>
         </CardContent>
       </Card>

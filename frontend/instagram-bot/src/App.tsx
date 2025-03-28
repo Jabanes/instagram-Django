@@ -10,6 +10,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AdSides from './components/AdSides';
 import { useAppSelector } from './app/hooks';
+import ForgotPassword from './pages/ForgotPassword';
 import "./App.css";
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
             <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
           </Routes>
           {/* <Footer /> */}
 

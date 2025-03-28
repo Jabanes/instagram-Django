@@ -1,5 +1,5 @@
 // src/components/nonFollowers.tsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { NonFollower } from "../models/NonFollower";
 import Confirm from "../components/Confirm"
@@ -16,14 +16,12 @@ type Props = {
   checkNewDataFlag: () => void;
 };
 
-
 const NonFollowers: React.FC<Props> = ({
   followersCount,
   followingCount,
   setStep,
   checkNewDataFlag,
 }) => {
-
   const [nonFollowers, setNonFollowers] = useState<NonFollower[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -33,9 +31,17 @@ const NonFollowers: React.FC<Props> = ({
 
   const token = localStorage.getItem("token");
 
+  useEffect(() => {
+    const localList = localStorage.getItem("nonFollowers");
+    if (localList) {
+      setNonFollowers(JSON.parse(localList));
+    }
+  }, []);
 
+  useEffect(() => {
+    localStorage.setItem("nonFollowers", JSON.stringify(nonFollowers));
+  }, [nonFollowers]);
 
-  // Label logic
   useEffect(() => {
     if (nonFollowers.length === 0) {
       setButtonLabel("Create Non-Follower List");
@@ -46,7 +52,6 @@ const NonFollowers: React.FC<Props> = ({
     }
   }, [nonFollowers, newDataFlag]);
 
-  // Poll for backend flag that notifies about new data
   useEffect(() => {
     checkNewDataFlag();
   }, []);
@@ -59,8 +64,11 @@ const NonFollowers: React.FC<Props> = ({
           Authorization: `Bearer ${token}`,
         },
       });
-
-      setNonFollowers(res.data.non_followers);
+      const formattedUsers: NonFollower[] = res.data.non_followers.map((doc: any) => ({
+        id: doc.id,
+        username: doc.username,
+      }));
+      setNonFollowers(formattedUsers);
     } catch (error) {
       console.error("Error fetching list", error);
       setMessage("⚠️ Could not fetch list.");
@@ -83,7 +91,7 @@ const NonFollowers: React.FC<Props> = ({
       await fetchNonFollowers();
       setMessage("✅ List created successfully.");
       setButtonLabel("Reset List");
-      setNewDataDetected(false); // reset trigger flag
+      setNewDataDetected(false);
     } catch (error) {
       console.error("Error:", error);
       setMessage("⚠️ Failed to create list.");
@@ -91,47 +99,56 @@ const NonFollowers: React.FC<Props> = ({
     setLoading(false);
   };
 
-  const deleteUser = async (id: number) => {
-    try {
-      await axios.delete(`http://127.0.0.1:8000/non-followers/delete/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setNonFollowers(nonFollowers.filter((user) => user.id !== id));
-    } catch (error) {
-      setMessage("⚠️ Could not delete user.");
-      console.error("Delete error:", error);
-    }
+  const deleteUser = (id: string) => {
+    setNonFollowers(nonFollowers.filter((user) => user.id !== id));
   };
 
   const unfollowUsers = async () => {
     setLoading(true);
-    setStep("waiting"); // tell parent to disable ready button, etc.
-
+    setStep("waiting");
+  
+    if (!token) {
+      setMessage("❌ No token found. Please log in again.");
+      setStep("idle");
+      setLoading(false);
+      return;
+    }
+  
     try {
-      await axios.post("http://127.0.0.1:8000/unfollow", null, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      await fetchNonFollowers();
+      // ✅ Step 1: Update the list on the backend
+      const usernamesOnly = nonFollowers.map((user) => user.username);
+      await axios.post(
+        "http://127.0.0.1:8000/non-followers/update-list",
+        { list: usernamesOnly },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+  
+      // ✅ Step 2: Run the unfollow script
+      await axios.post(
+        "http://127.0.0.1:8000/unfollow",
+        null,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+  
+      setNonFollowers([]);
+      localStorage.removeItem("nonFollowers");
       setMessage("🎉 Unfollowed users successfully.");
-      setStep("idle"); // restore state
     } catch (error) {
       setMessage("⚠️ Failed to unfollow.");
-      setStep("idle");
+      console.error(error);
     }
-
+  
+    setStep("idle");
     setLoading(false);
   };
-
-
-  useEffect(() => {
-    fetchNonFollowers();
-  }, []);
 
   return (
     <div className="mt-10 relative z-10 w-full max-w-3xl mx-auto">
@@ -185,10 +202,10 @@ const NonFollowers: React.FC<Props> = ({
               }}
               onCancel={() => setShowConfirm(false)}
             />
-
           </div>
+
           <h1 className="text-white text-1xl font-bold mb-4">
-            remove users to exclude on unfollow proccess:
+            Remove users to exclude from unfollow process:
           </h1>
           <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md overflow-y-auto max-h-[400px] border border-gray-200">
             <ul className="divide-y divide-gray-300">
