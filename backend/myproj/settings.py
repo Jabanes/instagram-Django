@@ -14,13 +14,18 @@ from pathlib import Path
 from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+import os
+from dotenv import load_dotenv
 
-
+load_dotenv()
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-14(pgy&yf-*qlnl@p=!puleu8@pr3zm*hjk02a_6du^kd=7s4='
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+
+if not SECRET_KEY:
+    raise ValueError("The Django secret key is not set in the environment variables.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
