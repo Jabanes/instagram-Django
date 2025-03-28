@@ -1,14 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+import 'firebase/storage';
 
 // Your Firebase configuration
 const firebaseConfig = {
-  apiKey: 'AIzaSyDbh8z1KwrrhtJj4AXCtTI30wSlMlIyCwE',
-  authDomain: 'instabot-ca8d9.firebaseapp.com',
-  projectId: 'instabot-ca8d9',
-  storageBucket: 'instabot-ca8d9.firebasestorage.app',
-  messagingSenderId: '960834199359',
-  appId: '1:960834199359:web:c1c0d54fe95d17fc4d7d8a',
+  apiKey: process.env.INSTABOT_API_KEY,
+  authDomain: process.env.INSTABOT_AUTH_DOMAIN,
+  projectId: process.env.INSTABOT_PROJECT_ID,
+  storageBucket: process.env.INSTABOT_STORAGE_BUCKET,
+  messagingSenderId: process.env.INSTABOT_MESSAGING_SENDER_ID,
+  appId: process.env.INSTABOT_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);

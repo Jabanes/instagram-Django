@@ -82,7 +82,8 @@ export const loginUser = async (email: string, password: string) => {
 
     const mappedUser = await mapFirebaseUserToCustomUser(firebaseUser);
     const token = await firebaseUser.getIdToken();
-
+    console.log(mappedUser.last_login);
+    
     return { user: mappedUser, access: token };
   } catch (error: any) {
     throw error;
