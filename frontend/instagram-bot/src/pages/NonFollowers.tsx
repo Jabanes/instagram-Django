@@ -3,6 +3,9 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { NonFollower } from "../models/NonFollower";
 import Confirm from "../components/Confirm"
+import { useNavigate } from "react-router-dom";
+import ConfirmModal from "../components/Confirm";
+
 
 type Props = {
   followersCount: number | 0;
@@ -28,7 +31,9 @@ const NonFollowers: React.FC<Props> = ({
   const [buttonLabel, setButtonLabel] = useState("Create Non-Follower List");
   const [newDataFlag, setNewDataDetected] = useState<boolean>(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showEveryoneFollowsModal, setShowEveryoneFollowsModal] = useState(false);
 
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
   useEffect(() => {
@@ -59,7 +64,7 @@ const NonFollowers: React.FC<Props> = ({
   const fetchNonFollowers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/non-followers", {
+      const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/non-followers`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -69,6 +74,8 @@ const NonFollowers: React.FC<Props> = ({
         username: doc.username,
       }));
       setNonFollowers(formattedUsers);
+      return formattedUsers;
+
     } catch (error) {
       console.error("Error fetching list", error);
       setMessage("⚠️ Could not fetch list.");
@@ -80,7 +87,7 @@ const NonFollowers: React.FC<Props> = ({
     setLoading(true);
     try {
       await axios.post(
-        "http://127.0.0.1:8000/non-followers/compare",
+        `${process.env.REACT_APP_API_BASE_URL}/non-followers/compare`,
         null,
         {
           headers: {
@@ -88,10 +95,17 @@ const NonFollowers: React.FC<Props> = ({
           },
         }
       );
-      await fetchNonFollowers();
-      setMessage("✅ List created successfully.");
-      setButtonLabel("Reset List");
-      setNewDataDetected(false);
+
+      const updatedList = await fetchNonFollowers() || [];
+
+      if (updatedList.length === 0) {
+        setShowEveryoneFollowsModal(true);
+      } else {
+        setMessage("✅ List created successfully.");
+        setButtonLabel("Reset List");
+        setNewDataDetected(false);
+      }
+
     } catch (error) {
       console.error("Error:", error);
       setMessage("⚠️ Failed to create list.");
@@ -106,19 +120,19 @@ const NonFollowers: React.FC<Props> = ({
   const unfollowUsers = async () => {
     setLoading(true);
     setStep("waiting");
-  
+
     if (!token) {
       setMessage("❌ No token found. Please log in again.");
       setStep("idle");
       setLoading(false);
       return;
     }
-  
+
     try {
       // ✅ Step 1: Update the list on the backend
       const usernamesOnly = nonFollowers.map((user) => user.username);
       await axios.post(
-        "http://127.0.0.1:8000/non-followers/update-list",
+        `${process.env.REACT_APP_API_BASE_URL}/non-followers/update-list`,
         { list: usernamesOnly },
         {
           headers: {
@@ -126,10 +140,10 @@ const NonFollowers: React.FC<Props> = ({
           },
         }
       );
-  
+
       // ✅ Step 2: Run the unfollow script
       await axios.post(
-        "http://127.0.0.1:8000/unfollow",
+        `${process.env.REACT_APP_API_BASE_URL}/unfollow`,
         null,
         {
           headers: {
@@ -137,17 +151,20 @@ const NonFollowers: React.FC<Props> = ({
           },
         }
       );
-  
+
       setNonFollowers([]);
       localStorage.removeItem("nonFollowers");
       setMessage("🎉 Unfollowed users successfully.");
+
+
     } catch (error) {
       setMessage("⚠️ Failed to unfollow.");
       console.error(error);
     }
-  
+
     setStep("idle");
     setLoading(false);
+    navigate("/dashboard");
   };
 
   return (
@@ -230,6 +247,17 @@ const NonFollowers: React.FC<Props> = ({
           </div>
         </>
       )}
+      <ConfirmModal
+        open={showEveryoneFollowsModal}
+        title="All Good!"
+        message="🎉 Everyone you follow follows you back. You might want to scan again later to check for updates."
+        confirmText="Scan Again"
+        cancelText="Close"
+        onConfirm={() => {
+          setShowEveryoneFollowsModal(false);
+        }}
+        onCancel={() => setShowEveryoneFollowsModal(false)}
+      />
     </div>
   );
 };
