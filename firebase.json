@@ -1,10 +1,16 @@
 {
   "hosting": {
-    "public": "firebase deploy --only hosting",
+    "public": "frontend/instagram-bot/build",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ]
   }
 }

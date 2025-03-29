@@ -5,7 +5,7 @@ import { CustomUser } from '../../models/User'; // Use the merged CustomUser typ
 import { getFirestore, doc, getDoc, serverTimestamp, setDoc  } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 
-const API = 'http://127.0.0.1:8000'; // replace with your backend
+const API = process.env.REACT_APP_API_BASE_URL; // replace with your backend
 
 // Map Firebase User to Custom User (merged)
 export const mapFirebaseUserToCustomUser = async (firebaseUser: FirebaseUser): Promise<CustomUser> => {

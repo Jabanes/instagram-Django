@@ -64,7 +64,7 @@ const NonFollowers: React.FC<Props> = ({
   const fetchNonFollowers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/non-followers", {
+      const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/non-followers`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -87,7 +87,7 @@ const NonFollowers: React.FC<Props> = ({
     setLoading(true);
     try {
       await axios.post(
-        "http://127.0.0.1:8000/non-followers/compare",
+        `${process.env.REACT_APP_API_BASE_URL}/non-followers/compare`,
         null,
         {
           headers: {
@@ -132,7 +132,7 @@ const NonFollowers: React.FC<Props> = ({
       // ✅ Step 1: Update the list on the backend
       const usernamesOnly = nonFollowers.map((user) => user.username);
       await axios.post(
-        "http://127.0.0.1:8000/non-followers/update-list",
+        `${process.env.REACT_APP_API_BASE_URL}/non-followers/update-list`,
         { list: usernamesOnly },
         {
           headers: {
@@ -143,7 +143,7 @@ const NonFollowers: React.FC<Props> = ({
 
       // ✅ Step 2: Run the unfollow script
       await axios.post(
-        "http://127.0.0.1:8000/unfollow",
+        `${process.env.REACT_APP_API_BASE_URL}/unfollow`,
         null,
         {
           headers: {

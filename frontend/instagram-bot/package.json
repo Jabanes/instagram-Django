@@ -32,7 +32,9 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "deploy": "npm run build && firebase deploy --project instabot-ca8d9 --only hosting"
+    
   },
   "eslintConfig": {
     "extends": [

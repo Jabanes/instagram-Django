@@ -18,7 +18,7 @@ const Dashboard = () => {
 
   const checkNewDataFlag = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/check-data", {
+      const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/check-data`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -48,7 +48,7 @@ const Dashboard = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://127.0.0.1:8000/follow-stats', {
+      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/follow-stats`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -101,7 +101,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
-        "http://127.0.0.1:8000/get-following",
+        `${process.env.REACT_APP_API_BASE_URL}/get-following`,
         {},
         {
           headers: {
@@ -139,7 +139,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
-        "http://127.0.0.1:8000/get-followers",
+        `${process.env.REACT_APP_API_BASE_URL}/get-followers`,
         {},
         {
           headers: {
@@ -172,7 +172,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'http://127.0.0.1:8000/confirm-bot-ready',
+        `${process.env.REACT_APP_API_BASE_URL}/confirm-bot-ready`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
