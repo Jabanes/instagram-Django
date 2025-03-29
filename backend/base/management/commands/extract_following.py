@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from base.firebase import db
-from base.firebase_stores import FollowingStore
 from firebase_admin import firestore
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -15,15 +14,16 @@ import tempfile
 class InstagramFollowing:
     def __init__(self, time_sleep: int = 10, user=None) -> None:
         self.time_sleep = time_sleep
-        self.following = set()
         self.user = user  # Firebase UID (str)
+        self.following = set()
+        self.existing_following = {}
         self.success = False
         service = Service(ChromeDriverManager().install())
         self.webdriver = webdriver.Chrome(service=service)
 
     def open_instagram(self):
         self.webdriver.get("https://www.instagram.com/")
-        print("\U0001F680 Log into Instagram manually, then press ENTER here.")
+        print("🚀 Log into Instagram manually, then press ENTER here.")
         flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{self.user}.flag")
         if os.path.exists(flag_path):
             os.remove(flag_path)
@@ -32,10 +32,10 @@ class InstagramFollowing:
 
     def go_to_following(self):
         try:
-            print("\U0001F50D Finding Following button...")
+            print("🔍 Finding Following button...")
             following_button = WebDriverWait(self.webdriver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/following/')]")
-            ))
+                EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/following/')]"))
+            )
             following_button.click()
             time.sleep(5)
         except Exception as e:
@@ -43,67 +43,96 @@ class InstagramFollowing:
             self.webdriver.quit()
             exit()
 
-    def scroll_to_load_following(self):
+    def load_existing_following(self):
+        print("📥 Loading existing following from Firestore...")
+        collection_ref = db.collection("users").document(str(self.user)).collection("followings")
+        docs = collection_ref.stream()
+        self.existing_following = {
+            doc.to_dict().get("username"): doc.id for doc in docs if doc.to_dict().get("username")
+        }
+
+    def scroll_and_extract(self):
         try:
-            print("\U0001F4DC Scrolling through Following list...")
+            print("📜 Scrolling and extracting ONLY valid Following users...")
             scroll_box = WebDriverWait(self.webdriver, 10).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "xyi19xy"))
             )
             last_height = 0
+
             while True:
+                # Get all containers that have both username and a "Following" button
+                user_blocks = scroll_box.find_elements(
+                    By.XPATH,
+                    ".//div[contains(@class, 'x1yztbdb') or contains(@class, 'x1qjc9v5')]"
+                )
+
+                for block in user_blocks:
+                    try:
+                        username_elem = block.find_element(
+                            By.XPATH, ".//span[@class='_ap3a _aaco _aacw _aacx _aad7 _aade']"
+                        )
+                        button_elem = block.find_element(
+                            By.XPATH, ".//div[@class='_ap3a _aaco _aacw _aad6 _aade' and text()='Following']"
+                        )
+
+                        if username_elem and button_elem:
+                            username = username_elem.text.strip()
+                            if username:
+                                self.following.add(username)
+                    except Exception:
+                        continue  # Skip invalid or suggested rows
+
+                # Scroll
                 self.webdriver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_box)
                 time.sleep(5)
                 new_height = self.webdriver.execute_script("return arguments[0].scrollTop", scroll_box)
+
                 if new_height == last_height:
+                    print("⏹️ Reached end of scroll.")
                     break
                 last_height = new_height
-        except Exception as e:
-            print(f"⚠️ Error scrolling Following list: {str(e)}")
 
-    def extract_following(self):
-        try:
-            print("\U0001F4E5 Extracting usernames...")
-            scroll_box = self.webdriver.find_element(By.CLASS_NAME, "xyi19xy")
-            elements = scroll_box.find_elements(By.XPATH, ".//span[@class='_ap3a _aaco _aacw _aacx _aad7 _aade']")
-            for el in elements:
-                self.following.add(el.text)
         except Exception as e:
-            print(f"⚠️ Error extracting Following list: {str(e)}")
-
+            print(f"⚠️ Error while scrolling or extracting: {str(e)}")
+            
     def save_results_to_db(self):
         if not self.user or not self.following:
             print(f"❌ No following extracted for {self.user}.")
             return
 
-        print(f"🔍 Fetching current following from Firestore for {self.user}...")
+        print(f"📦 Saving results to Firestore for {self.user}...")
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
-        existing_docs = list(collection_ref.stream())
-        existing_following = {doc.to_dict().get("username"): doc.id for doc in existing_docs if doc.to_dict().get("username")}
 
-        after_following = self.following
-        before_following = set(existing_following.keys())
+        before_set = set(self.existing_following.keys())
+        after_set = self.following
 
-        to_add = after_following - before_following
-        to_remove = before_following - after_following
+        to_add = after_set - before_set
+        to_remove = before_set - after_set
 
         print(f"➕ To Add: {to_add}\n➖ To Remove: {to_remove}")
 
+        batch = db.batch()
+
         for username in to_add:
-            FollowingStore.add(self.user, username)
-            print(f"✅ Added: {username}")
+            doc_ref = collection_ref.document()
+            batch.set(doc_ref, {"username": username})
+            print(f"✅ Queued to add: {username}")
 
         for username in to_remove:
-            doc_id = existing_following[username]
-            collection_ref.document(doc_id).delete()
-            print(f"❌ Removed: {username}")
+            doc_id = self.existing_following[username]
+            doc_ref = collection_ref.document(doc_id)
+            batch.delete(doc_ref)
+            print(f"❌ Queued to remove: {username}")
 
+        batch.commit()
+        print("🎯 Batch update complet*e.")
         self.success = True
 
     def run(self):
         self.open_instagram()
         self.go_to_following()
-        self.scroll_to_load_following()
-        self.extract_following()
+        self.load_existing_following()
+        self.scroll_and_extract()
         self.save_results_to_db()
         print("🎉 Following extraction and sync complete.")
         self.webdriver.quit()
@@ -113,7 +142,7 @@ class Command(BaseCommand):
     help = "Extract following and save them in Firestore"
 
     def add_arguments(self, parser):
-        parser.add_argument('user_id', type=str)  # now Firebase UID (str)
+        parser.add_argument('user_id', type=str)  # Firebase UID
 
     def handle(self, *args, **kwargs):
         user_id = kwargs['user_id']
@@ -121,6 +150,6 @@ class Command(BaseCommand):
         bot.run()
 
         if bot.success:
-            self.stdout.write(self.style.SUCCESS(f"Successfully saved following for user {user_id}"))
+            self.stdout.write(self.style.SUCCESS(f"✅ Successfully saved following for user {user_id}"))
         else:
-            self.stdout.write(self.style.ERROR(f"No data extracted for user {user_id}"))
+            self.stdout.write(self.style.ERROR(f"❌ No data extracted for user {user_id}"))
