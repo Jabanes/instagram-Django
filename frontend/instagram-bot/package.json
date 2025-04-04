@@ -33,8 +33,8 @@
     "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject",
+    "build:prod": "REACT_APP_API_BASE_URL=https://railway.com/project/60eca44c-1aae-4713-994a-827c8df0d8af?environmentId=369e5ad4-d118-4bf3-8b36-8f773ac5ffe7 npm run build",
     "deploy": "npm run build && firebase deploy --project instabot-ca8d9 --only hosting"
-    
   },
   "eslintConfig": {
     "extends": [
@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@craco/craco": "^7.1.0",
+    "@types/chrome": "^0.0.313",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.1"

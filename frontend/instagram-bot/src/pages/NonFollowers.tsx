@@ -5,7 +5,7 @@ import { NonFollower } from "../models/NonFollower";
 import Confirm from "../components/Confirm"
 import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../components/Confirm";
-
+import { auth } from "../app/firebase";
 
 type Props = {
   followersCount: number | 0;
@@ -120,16 +120,14 @@ const NonFollowers: React.FC<Props> = ({
   const unfollowUsers = async () => {
     setLoading(true);
     setStep("waiting");
-
-    if (!token) {
-      setMessage("❌ No token found. Please log in again.");
-      setStep("idle");
-      setLoading(false);
-      return;
-    }
-
+  
+    const endpoint = `${process.env.REACT_APP_API_BASE_URL}/unfollow`;
+  
     try {
-      // ✅ Step 1: Update the list on the backend
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Missing Firebase token");
+  
+      // ✅ Step 1: Update the non-followers list (backend logic still runs)
       const usernamesOnly = nonFollowers.map((user) => user.username);
       await axios.post(
         `${process.env.REACT_APP_API_BASE_URL}/non-followers/update-list`,
@@ -140,28 +138,36 @@ const NonFollowers: React.FC<Props> = ({
           },
         }
       );
-
-      // ✅ Step 2: Run the unfollow script
-      await axios.post(
-        `${process.env.REACT_APP_API_BASE_URL}/unfollow`,
-        null,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setNonFollowers([]);
-      localStorage.removeItem("nonFollowers");
-      setMessage("🎉 Unfollowed users successfully.");
-
-
+  
+      // ✅ Step 2: Send token to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "saveFirebaseToken",
+        token,
+      });
+  
+      // ✅ Step 3: Send unfollow endpoint to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setTargetEndpoint",
+        endpoint
+      });
+      
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setSelectedAction",
+        label: "Unfollow listed users"  // or "Unfollow", "Get Following", etc.
+      });
+      
+      console.log("📬 Token and unfollow endpoint sent to extension.");
+      console.log(`📦 Token: ${token}`);
+      console.log(`📦 Endpoint: ${endpoint}`);
+  
+      // ✅ Step 4: Prompt user to trigger extension action
+      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to start unfollowing.");
+  
     } catch (error) {
       setMessage("⚠️ Failed to unfollow.");
-      console.error(error);
+      console.error("❌ unfollowUsers error:", error);
     }
-
+  
     setStep("idle");
     setLoading(false);
     navigate("/dashboard");

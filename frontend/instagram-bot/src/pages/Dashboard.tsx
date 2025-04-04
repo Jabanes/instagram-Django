@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import NonFollowers from './NonFollowers';
 import Confirm from "../components/Confirm"
-
+import { auth } from "../app/firebase";
+import { log } from 'util';
 
 const Dashboard = () => {
   const [step, setStep] = useState<"idle" | "waiting" | "ready">("idle");
@@ -15,6 +16,43 @@ const Dashboard = () => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const token = localStorage.getItem("token");
+  
+
+  useEffect(() => {
+    const handleAuthAndInject = async () => {
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
+        if (user) {
+          const token = await user.getIdToken(true);
+          localStorage.setItem("firebase_token", token);
+          console.log("🔐 Firebase token stored in localStorage.");
+  
+          // ✅ Inject into extension
+          if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+            chrome.runtime.sendMessage(
+              "dcoiahgajkjopndopoaeiigpgkhcjocm", // your extension ID
+              { action: "saveFirebaseToken", token },
+              (response: any) => {
+                console.log("📩 Sent token to extension:", response);
+              }
+            );
+          } else {
+            console.log("❌ Chrome runtime not available.");
+          }
+  
+        } else {
+          localStorage.removeItem("firebase_token");
+          console.log("🚪 User logged out, token removed.");
+        }
+      });
+  
+      return () => unsubscribe();
+    };
+  
+    // Delay until after full mount
+    setTimeout(() => {
+      handleAuthAndInject();
+    }, 0);
+  }, []);
 
   const checkNewDataFlag = async () => {
     try {
@@ -35,7 +73,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     console.log(botStatus);
-
+    
   }, [botStatus])
 
   useEffect(() => {
@@ -97,35 +135,43 @@ const Dashboard = () => {
   const getFollowing = async () => {
     setStep("waiting");
     setBotStatus("");
-
+  
+    const endpoint = `${process.env.REACT_APP_API_BASE_URL}/get-following`;
+  
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_BASE_URL}/get-following`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Missing Firebase token");
+  
+      // ✅ Send token to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "saveFirebaseToken",
+        token
+      });
+  
+      // ✅ Send endpoint to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setTargetEndpoint",
+        endpoint
 
-      const { status, before_count, after_count } = response.data;
+      });
 
-      if (status === "success" || status === "no_change") {
-        if (after_count !== before_count) {
-          setNewDataDetected(true);
-        }
-
-        setBotStatus(status);
-        await fetchStats();
-      } else {
-        setBotStatus("error");
-      }
-      checkNewDataFlag()
-
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setSelectedAction",
+        label: "Get Following"  // or "Unfollow", "Get Following", etc.
+      });
+      
+  
+      console.log("📬 Token and endpoint sent to extension.");
+  
+      // ✅ Ask user to open the extension popup (acts like alert/confirm)
+      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to start the script.");
+  
+      // Optional: log to track
+      console.log(`📦 Token: ${token}`);
+      console.log(`📦 Endpoint: ${endpoint}`);
+  
     } catch (err) {
-      console.error(err);
+      console.error("❌ Failed to prepare bot command:", err);
       setBotStatus("error");
     } finally {
       setStep("idle");
@@ -135,39 +181,47 @@ const Dashboard = () => {
   const getFollowers = async () => {
     setStep("waiting");
     setBotStatus("");
-
+  
+    const endpoint = `${process.env.REACT_APP_API_BASE_URL}/get-followers`;
+  
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_BASE_URL}/get-followers`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Missing Firebase token");
+  
+      // ✅ Send token to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "saveFirebaseToken",
+        token
+      });
+  
+      // ✅ Send endpoint to extension
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setTargetEndpoint",
+        endpoint
+      });
 
-      const { status } = response.data;
+      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+        action: "setSelectedAction",
+        label: "Get Following"  // or "Unfollow", "Get Following", etc.
+      });
+        
 
-      if (status === "success") {
-        setBotStatus("success");
-        await fetchStats();
-      } else if (status === "no_change") {
-        setBotStatus("no_change");
-        await fetchStats();
-      } else {
-        setBotStatus("error");
-      }
-      checkNewDataFlag()
-
+  
+      console.log("📬 Token and endpoint sent to extension.");
+      console.log(`📦 Token: ${token}`);
+      console.log(`📦 Endpoint: ${endpoint}`);
+  
+      // ✅ Prompt user to click the extension
+      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to extract followers.");
+  
     } catch (err) {
-      console.error(err);
+      console.error("❌ getFollowers error:", err);
       setBotStatus("error");
     } finally {
       setStep("idle");
     }
   };
+  
   const handleConfirmReady = async () => {
     try {
       const token = localStorage.getItem('token');

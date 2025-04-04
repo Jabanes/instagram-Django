@@ -12,6 +12,7 @@ import AdSides from './components/AdSides';
 import { useAppSelector } from './app/hooks';
 import ForgotPassword from './pages/ForgotPassword';
 import "./App.css";
+import { useEffect } from "react";
 
 function App() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
