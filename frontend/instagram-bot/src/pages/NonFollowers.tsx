@@ -10,20 +10,19 @@ import { auth } from "../app/firebase";
 type Props = {
   followersCount: number | 0;
   followingCount: number | 0;
-  lastFollowersScan: string | null;
-  lastFollowingScan: string | null;
   botStatus: "success" | "error" | "no_change" | "";
   newDataDetected: boolean;
-  step: "idle" | "waiting" | "ready";
-  setStep: React.Dispatch<React.SetStateAction<"idle" | "waiting" | "ready">>;
+  selectedAction: string | null;  // ✅ add this line
   checkNewDataFlag: () => void;
+  handleSelectAction: (action: string, callback: () => void) => void;
 };
 
 const NonFollowers: React.FC<Props> = ({
   followersCount,
   followingCount,
-  setStep,
   checkNewDataFlag,
+  handleSelectAction,
+  selectedAction
 }) => {
   const [nonFollowers, setNonFollowers] = useState<NonFollower[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,7 +118,6 @@ const NonFollowers: React.FC<Props> = ({
 
   const unfollowUsers = async () => {
     setLoading(true);
-    setStep("waiting");
   
     const endpoint = `${process.env.REACT_APP_API_BASE_URL}/unfollow`;
   
@@ -168,7 +166,6 @@ const NonFollowers: React.FC<Props> = ({
       console.error("❌ unfollowUsers error:", error);
     }
   
-    setStep("idle");
     setLoading(false);
     navigate("/dashboard");
   };
@@ -207,10 +204,14 @@ const NonFollowers: React.FC<Props> = ({
 
           <div className="flex justify-center mb-4">
             <button
-              onClick={() => setShowConfirm(true)}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+              className={`font-semibold px-4 py-2 rounded-md transition 
+                ${selectedAction === "unfollow"
+                  ? "bg-green-600 scale-105 shadow-lg"
+                  : "bg-pink-600 hover:bg-pink-700"} 
+                text-white`}
+              onClick={() => handleSelectAction("unfollow", unfollowUsers)}
             >
-              Unfollow Listed Users
+              Unfollow
             </button>
 
             <Confirm
