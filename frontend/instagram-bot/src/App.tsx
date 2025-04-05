@@ -13,6 +13,8 @@ import { useAppSelector } from './app/hooks';
 import ForgotPassword from './pages/ForgotPassword';
 import "./App.css";
 import { useEffect } from "react";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
@@ -38,6 +40,22 @@ function App() {
             </div>
           ))}
         </div>
+        <ToastContainer
+          position="top-center"
+          autoClose={6000}
+          hideProgressBar={false}
+          newestOnTop={true}
+          closeOnClick
+          pauseOnHover
+          draggable
+          theme="light"
+          toastClassName={() =>
+            "bg-white/80 backdrop-blur-md shadow-md text-gray-800 font-medium rounded-xl px-4 py-3 border border-pink-200"
+          }
+          className="text-sm leading-snug tracking-wide"
+          progressClassName="bg-pink-500"
+          style={{ zIndex: 9999 }}
+        />
 
         <div className="relative z-10 px-4 sm:px-6 lg:px-8">
           <Routes>

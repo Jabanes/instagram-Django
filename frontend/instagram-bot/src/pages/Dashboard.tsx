@@ -3,6 +3,8 @@ import axios from 'axios';
 import NonFollowers from './NonFollowers';
 import Confirm from "../components/Confirm"
 import { auth } from "../app/firebase";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Dashboard = () => {
   const [botStatus, setBotStatus] = useState<"success" | "error" | "no_change" | "">("");
@@ -52,7 +54,7 @@ const Dashboard = () => {
       handleAuthAndInject();
     }, 0);
   }, []);
-  
+
   useEffect(() => {
     const handleMessage = (message: any, sender: any, sendResponse: any) => {
       if (message.action === "botStatus") {
@@ -196,8 +198,15 @@ const Dashboard = () => {
 
       console.log("📬 Token and endpoint sent to extension.");
 
-      // ✅ Ask user to open the extension popup (acts like alert/confirm)
-      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to start the script.");
+      toast.info("Following Selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
+        position: "top-center",
+        autoClose: 6000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
 
       // Optional: log to track
       console.log(`📦 Token: ${token}`);
@@ -239,8 +248,15 @@ const Dashboard = () => {
       console.log(`📦 Token: ${token}`);
       console.log(`📦 Endpoint: ${endpoint}`);
 
-      // ✅ Prompt user to click the extension
-      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to extract followers.");
+      toast.info("Followers Selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
+        position: "top-center",
+        autoClose: 6000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
 
     } catch (err) {
       console.error("❌ getFollowers error:", err);
@@ -252,6 +268,8 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex flex-col items-center justify-start py-16 px-4 relative overflow-hidden">
       {/* Floating animated icons */}
+
+      
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
         {Array.from({ length: 15 }).map((_, i) => (
           <div
@@ -334,7 +352,6 @@ const Dashboard = () => {
           />
         </div>
       </div>
-
       <style>
         {`
           @keyframes float {

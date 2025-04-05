@@ -6,6 +6,8 @@ import Confirm from "../components/Confirm"
 import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../components/Confirm";
 import { auth } from "../app/firebase";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 type Props = {
   followersCount: number | 0;
@@ -117,11 +119,12 @@ const NonFollowers: React.FC<Props> = ({
   };
 
   const unfollowUsers = async () => {
-    setLoading(true);
-  
+    
+    
     const endpoint = `${process.env.REACT_APP_API_BASE_URL}/unfollow`;
   
     try {
+      setLoading(true);
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Missing Firebase token");
   
@@ -158,8 +161,15 @@ const NonFollowers: React.FC<Props> = ({
       console.log(`📦 Token: ${token}`);
       console.log(`📦 Endpoint: ${endpoint}`);
   
-      // ✅ Step 4: Prompt user to trigger extension action
-      alert("Almost done! Click the Chrome extension icon and hit 'Send to Bot' to start unfollowing.");
+      toast.info("Unfollow selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
+        position: "top-center",
+        autoClose: 6000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
   
     } catch (error) {
       setMessage("⚠️ Failed to unfollow.");
@@ -213,19 +223,6 @@ const NonFollowers: React.FC<Props> = ({
             >
               Unfollow
             </button>
-
-            <Confirm
-              open={showConfirm}
-              title="Unfollow listed users?"
-              message="⚠️ You are about to unfollow all listed users. This action cannot be undone. Are you sure you want to proceed?"
-              confirmText="Yes, Unfollow"
-              cancelText="Cancel"
-              onConfirm={() => {
-                unfollowUsers();
-                setShowConfirm(false);
-              }}
-              onCancel={() => setShowConfirm(false)}
-            />
           </div>
 
           <h1 className="text-white text-1xl font-bold mb-4">
