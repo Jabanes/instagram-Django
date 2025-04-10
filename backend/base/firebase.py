@@ -1,17 +1,16 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
 import os
-from dotenv import load_dotenv
+import json
 import firebase_admin
 from firebase_admin import credentials, firestore
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
-firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-
-cred = credentials.Certificate(firebase_credentials_path)
+# Get raw JSON from environment variable
+firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
+cred_dict = json.loads(firebase_creds_json)
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-print("Firebase initialized successfully!")
+print("✅ Firebase initialized from environment variable!")

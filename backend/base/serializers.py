@@ -5,8 +5,6 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .firebase_stores import UserScanInfoStore
 import pytz
 
-
-
 israel_tz = pytz.timezone("Asia/Jerusalem")
 
 class RegisterSerializer(serializers.ModelSerializer):

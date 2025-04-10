@@ -1,27 +1,61 @@
 from django.core.management.base import BaseCommand
 from base.firebase_stores import NonFollowerStore, FollowingStore
 from base.firebase import db
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 import time
 import random
 import os
 import tempfile
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Read from .env: HEADLESS=true for Railway, false for local
+HEADLESS_MODE = os.getenv("HEADLESS", "false").lower() == "true"
+
 
 class InstagramUnfollower:
-    def __init__(self, user=None, time_sleep: int = 10):
-        self.user = user  # Firebase UID (str)
+    def __init__(self, user=None, time_sleep: int = 10, cookies=None, profile_url=None):
+        self.user = user
         self.time_sleep = time_sleep
+        self.cookies = cookies or []
+        self.profile_url = profile_url
         self.success = False
         self.unfollowed = []
-        service = Service(ChromeDriverManager().install())
-        options = webdriver.ChromeOptions()
-        options.add_argument("--disable-notifications")
-        self.webdriver = webdriver.Chrome(service=service, options=options)
+
+        environment = os.getenv("ENVIRONMENT", "local")
+        chrome_bin_path = os.getenv("CHROME_BIN", "")
+        chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+        chrome_options = uc.ChromeOptions()
+
+        if HEADLESS_MODE:
+            chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-notifications")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        # Decide which binary path to use
+        if environment == "production" and chrome_bin_path:
+            chrome_options.binary_location = chrome_bin_path
+            browser_path = chrome_bin_path
+        else:
+            chrome_options.binary_location = chrome_path
+            browser_path = chrome_path
+
+        # ✅ Instantiate webdriver only ONCE
+        self.webdriver = uc.Chrome(
+            options=chrome_options,
+            browser_executable_path=browser_path,
+            use_subprocess=True
+        )
+
+        print("🌍 ENV:", environment)
+        print("🔥 Headless mode:", HEADLESS_MODE)
+        print("🧠 Chromium binary at:", chrome_options.binary_location)
 
     def wait(self):
         time.sleep(random.uniform(2, 5))
@@ -30,21 +64,25 @@ class InstagramUnfollower:
         return [n['username'] for n in NonFollowerStore.list(self.user)]
 
     def open_instagram(self):
-        self.webdriver.get("https://www.instagram.com/")
-        print("\U0001F680 Log into Instagram manually, then press ENTER here.")
-        flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{self.user}.flag")
-
-        if os.path.exists(flag_path):
-            os.remove(flag_path)
-
-        while not os.path.exists(flag_path):
-            time.sleep(1)
+        try:
+            self.webdriver.get("https://www.instagram.com/")
+            self.webdriver.delete_all_cookies()
+            for cookie in self.cookies:
+                cookie.pop("sameSite", None)
+                cookie.pop("hostOnly", None)
+                cookie["domain"] = ".instagram.com"
+                self.webdriver.add_cookie(cookie)
+            self.webdriver.get(self.profile_url)
+            time.sleep(5)
+        except Exception as e:
+            print(f"❌ open_instagram failed: {e}")
+            raise e
 
     def unfollow_user(self, username):
-        self.webdriver.get(f"https://www.instagram.com/{username}/")
-        self.wait()
-
         try:
+            self.webdriver.get(f"https://www.instagram.com/{username}/")
+            self.wait()
+
             follow_button = WebDriverWait(self.webdriver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Following')]"))
             )
@@ -69,7 +107,6 @@ class InstagramUnfollower:
             print("📭 No users were unfollowed. Nothing to update.")
             return
 
-        # Remove from NonFollower list
         for username in self.unfollowed:
             NonFollowerStore.delete(self.user, username)
             FollowingStore.delete(self.user, username)
@@ -83,37 +120,37 @@ class InstagramUnfollower:
         print("📌 Change detected — flag file written for frontend.")
 
     def run(self):
-        self.open_instagram()
-        usernames = self.load_non_followers()
+        try:
+            self.open_instagram()
 
-        if not usernames:
-            print("⚠️ No non-followers found. Exiting.")
-            self.webdriver.quit()
-            return
+            usernames = self.load_non_followers()
+            if not usernames:
+                print("⚠️ No non-followers found. Exiting.")
+                self.success = False
+                return
 
-        for username in usernames:
-            if self.unfollow_user(username):
-                self.unfollowed.append(username)
+            for username in usernames:
+                try:
+                    if self.unfollow_user(username):
+                        NonFollowerStore.delete(self.user, username)
+                        FollowingStore.delete(self.user, username)
+                        print(f"🗑️ Removed {username} from Firestore.")
+                        print(f"✅ Unfollowed {username} successfully.\n")
+                        self.success = True  # at least one success
+                    else:
+                        print(f"⚠️ Skipped {username} due to unfollow failure.\n")
+                except Exception as e:
+                    print(f"⚠️ Error unfollowing {username}: {e}")
+                    continue  # move to next user
 
-        self.save_results_to_db()
-        self.webdriver.quit()
+        except Exception as e:
+            print(f"❌ Unfollow bot error: {e}")
+            self.success = False
+            raise  # Ensure view knows it failed
 
+        finally:
+            try:
+                self.webdriver.quit()
+            except Exception as e:
+                print(f"⚠️ Failed to quit webdriver: {e}")
 
-class Command(BaseCommand):
-    help = "Unfollow users who don’t follow back (Firebase version)"
-
-    def add_arguments(self, parser):
-        parser.add_argument('user_id', type=str, help="The Firebase UID of the user")
-
-    def handle(self, *args, **kwargs):
-        user_id = kwargs['user_id']
-
-        bot = InstagramUnfollower(user=user_id)
-        bot.run()
-
-        if bot.success:
-            self.stdout.write(self.style.SUCCESS(f"Successfully unfollowed users for {user_id}"))
-            print("UNFOLLOW_SUCCESS")
-        else:
-            self.stdout.write(self.style.WARNING(f"No users were unfollowed for {user_id}"))
-            print("NO_UNFOLLOW_NEEDED")

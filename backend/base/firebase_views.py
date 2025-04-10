@@ -1,20 +1,21 @@
 from rest_framework.response import Response
-from rest_framework.decorators import api_view,  permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework import status
 import subprocess
 import os
 import tempfile
 from .management.commands.extract_followers import InstagramFollowers
 from .management.commands.extract_following import InstagramFollowing
-from base.serializers import UserUpdateSerializer, MyTokenObtainPairSerializer, RegisterSerializer
-from base.firebase_stores import NonFollowerStore, FollowerStore, FollowingStore, UserScanInfoStore, UserStore
+from .management.commands.unfollow import InstagramUnfollower
+from base.firebase_stores import NonFollowerStore, FollowerStore, FollowingStore, UserScanInfoStore, UserStore, BotStatusStore
 from base.firebase import db
-from rest_framework_simplejwt.views import TokenObtainPairView
-from firebase_admin import auth as firebase_auth
-import firebase_admin
+from firebase_admin import auth as firebase_auth, firestore
 from django.utils.timezone import now
-
+from threading import Thread
+from django.core.management import call_command
+from socket import error as SocketError
+import errno
+import threading
 
 @api_view(['POST'])
 def login(request):
@@ -99,10 +100,7 @@ def generateNonFollowersList(request):
     try:
 
         # Run your bot (same as before)
-        subprocess.run(
-            ['python', 'manage.py', 'compare_nonfollowers', str(user_id)],
-            check=True
-        )
+        call_command('compare_nonfollowers', str(user_id))
 
         # Fetch from Firebase instead of ORM
         non_followers = NonFollowerStore.list(user_id)
@@ -213,6 +211,7 @@ def update_profile(request):
 
 @api_view(["POST"])
 def run_instagram_followers_script(request):
+    print("🔥 run_instagram_followers_script triggered")
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return Response({"error": "Missing or invalid Authorization header"}, status=401)
@@ -223,16 +222,62 @@ def run_instagram_followers_script(request):
         user_id = decoded_token["uid"]
     except Exception as e:
         return Response({"error": f"Invalid token: {str(e)}"}, status=401)
-    
-    before = len(FollowerStore.list(user_id))
-    bot = InstagramFollowers(user=user_id)
-    bot.run()
-    after = len(FollowerStore.list(user_id))
-    
-    if bot.success:
-        UserScanInfoStore.update(user_id, last_followers_scan=now())
-        return Response({"status": "success", "before_count": before, "after_count": after})
-    return Response({"status": "no_change", "before_count": before, "after_count": after})
+
+    cookies = request.data.get("cookies")
+    profile_url = request.data.get("profile_url")
+
+    if not cookies or not profile_url:
+        return Response({"error": "Missing cookies or profile URL"}, status=400)
+
+    BotStatusStore.set_running(user_id, True)
+
+    def run_bot_async():
+        threading.current_thread().name = "selenium-bot-thread"
+        try:
+            print("🔥 run_bot_async STARTED", flush=True)
+            count_before = len(FollowerStore.list(user_id))
+            bot = InstagramFollowers(user=user_id, cookies=cookies, profile_url=profile_url)
+            bot.run()
+            count_after = len(FollowerStore.list(user_id))
+
+            if bot.success:
+                UserScanInfoStore.update(user_id, last_followers_scan=now())
+                BotStatusStore.set_status(user_id, {
+                    "type": "followers",
+                    "status": "success",
+                    "count_before": count_before,
+                    "count_after": count_after,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": None
+                })
+            else:
+                BotStatusStore.set_status(user_id, {
+                    "type": "followers",
+                    "status": "no_change",
+                    "count_before": count_before,
+                    "count_after": count_after,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": "No new followers found."
+                })
+
+        except Exception as e:
+            print("❌ Bot crashed:", str(e))
+            BotStatusStore.set_status(user_id, {
+                "type": "followers",
+                "status": "error",
+                "count_before": None,
+                "count_after": None,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "message": str(e)
+            })
+        finally:
+            BotStatusStore.set_running(user_id, False)
+
+    Thread(target=run_bot_async).start()
+
+    # ✅ Respond immediately
+    return Response({"status": "Bot started"})
+
 
 @api_view(["POST"])
 def run_unfollow_non_followers_script(request):
@@ -247,33 +292,77 @@ def run_unfollow_non_followers_script(request):
     except Exception as e:
         return Response({"error": f"Invalid token: {str(e)}"}, status=401)
 
-    # Count before
-    non_followers_ref = db.collection("users").document(user_id).collection("non_followers")
-    following_ref = db.collection("users").document(user_id).collection("followings")
-    before_non_followers = len(list(non_followers_ref.stream()))
-    before_following = len(list(following_ref.stream()))
+    cookies = request.data.get("cookies")
+    profile_url = request.data.get("profile_url")
 
-    try:
-        # Run unfollow script with Firebase UID
-        subprocess.run(['python', 'manage.py', 'unfollow', str(user_id)], check=True)
+    if not cookies or not profile_url:
+        return Response({"error": "Missing cookies or profile URL"}, status=400)
 
-        # Count after
-        after_non_followers = len(list(non_followers_ref.stream()))
-        after_following = len(list(following_ref.stream()))
+    BotStatusStore.set_running(user_id, True)
 
-        return Response({
-            "status": "success" if after_non_followers < before_non_followers else "no_change",
-            "non_followers_before": before_non_followers,
-            "non_followers_after": after_non_followers,
-            "following_before": before_following,
-            "following_after": after_following
-        })
-    except subprocess.CalledProcessError:
-        return Response({"status": "error", "message": "Unfollow script failed."}, status=500)
-    
+    def run_bot_async():
+        try:
+            before_nf = len(list(db.collection("users").document(user_id).collection("non_followers").stream()))
+            before_following = len(list(db.collection("users").document(user_id).collection("followings").stream()))
+
+            bot = InstagramUnfollower(user=user_id, cookies=cookies, profile_url=profile_url)
+            bot.run()
+
+            after_nf = len(list(db.collection("users").document(user_id).collection("non_followers").stream()))
+            after_following = len(list(db.collection("users").document(user_id).collection("followings").stream()))
+
+            if bot.success:
+                BotStatusStore.set_status(user_id, {
+                    "type": "unfollow",
+                    "status": "success",
+                    "non_followers_before": before_nf,
+                    "non_followers_after": after_nf,
+                    "following_before": before_following,
+                    "following_after": after_following,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": None
+                })
+            else:
+                BotStatusStore.set_status(user_id, {
+                    "type": "unfollow",
+                    "status": "no_change",
+                    "non_followers_before": before_nf,
+                    "non_followers_after": after_nf,
+                    "following_before": before_following,
+                    "following_after": after_following,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": "No changes made."
+                })
+
+        except Exception as e:
+            print("❌ Unfollow bot crashed:", str(e))
+            BotStatusStore.set_status(user_id, {
+                "type": "unfollow",
+                "status": "error",
+                "non_followers_before": None,
+                "non_followers_after": None,
+                "following_before": None,
+                "following_after": None,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "message": str(e)
+            })
+        finally:
+            BotStatusStore.set_running(user_id, False)
+
+    Thread(target=run_bot_async).start()
+
+    # ✅ Respond immediately
+     # ✅ Respond immediately with the initial counts
+    return Response({
+        "status": "Bot started",
+        "non_followers_before": len(list(db.collection("users").document(user_id).collection("non_followers").stream())),
+        "following_before": len(list(db.collection("users").document(user_id).collection("followings").stream()))
+    })
+
 
 @api_view(["POST"])
 def run_instagram_following_script(request):
+    print("🔥 run_instagram_following_script triggered")
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return Response({"error": "Missing or invalid Authorization header"}, status=401)
@@ -284,36 +373,63 @@ def run_instagram_following_script(request):
         user_id = decoded_token["uid"]
     except Exception as e:
         return Response({"error": f"Invalid token: {str(e)}"}, status=401)
-    before = len(FollowingStore.list(user_id))
-    bot = InstagramFollowing(user=user_id)
-    bot.run()
-    after = len(FollowingStore.list(user_id))
-    if bot.success:
-        UserScanInfoStore.update(user_id, last_following_scan=now())
-        return Response({"status": "success", "before_count": before, "after_count": after})
-    return Response({"status": "no_change", "before_count": before, "after_count": after})
 
-@api_view(["POST"])
-def confirm_bot_ready(request):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return Response({"error": "Missing or invalid Authorization header"}, status=401)
+    cookies = request.data.get("cookies")
+    profile_url = request.data.get("profile_url")
 
-    id_token = auth_header.split("Bearer ")[1]
-    try:
-        decoded_token = firebase_auth.verify_id_token(id_token)
-        user_id = decoded_token["uid"]
-    except Exception as e:
-        return Response({"error": f"Invalid token: {str(e)}"}, status=401)
-    
-    flag_path = os.path.join(tempfile.gettempdir(), f"ig_ready_user_{user_id}.flag")
-    try:
-        with open(flag_path, "w") as f:
-            f.write("ready")
-        return Response({"status": "success", "message": "Bot confirmed ready."})
-    except Exception as e:
-        return Response({"status": "error", "message": str(e)}, status=500)
-    
+    if not cookies or not profile_url:
+        return Response({"error": "Missing cookies or profile URL"}, status=400)
+
+    BotStatusStore.set_running(user_id, True)
+
+    def run_bot_async():
+        try:
+            print("🔥 run_bot_async STARTED", flush=True)
+            before = len(FollowingStore.list(user_id))
+
+            bot = InstagramFollowing(user=user_id, cookies=cookies, profile_url=profile_url)
+            bot.run()
+
+            after = len(FollowingStore.list(user_id))
+
+            if bot.success:
+                UserScanInfoStore.update(user_id, last_following_scan=now())
+                BotStatusStore.set_status(user_id, {
+                    "type": "following",
+                    "status": "success",
+                    "count_before": before,
+                    "count_after": after,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": None
+                })
+            else:
+                BotStatusStore.set_status(user_id, {
+                    "type": "following",
+                    "status": "no_change",
+                    "count_before": before,
+                    "count_after": after,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "message": "No new followings found."
+                })
+
+        except Exception as e:
+            print("❌ Following bot crashed:", str(e))
+            BotStatusStore.set_status(user_id, {
+                "type": "following",
+                "status": "error",
+                "count_before": None,
+                "count_after": None,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "message": str(e)
+            })
+        finally:
+            BotStatusStore.set_running(user_id, False)
+
+    Thread(target=run_bot_async).start()
+
+    # ✅ Respond immediately
+    return Response({"status": "Bot started"})
+
 
 @api_view(["GET"])
 def check_new_data_flag(request):
@@ -330,3 +446,70 @@ def check_new_data_flag(request):
     
     flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{user_id}.flag")
     return Response({"new_data": os.path.exists(flag_path)})
+
+
+from datetime import datetime
+
+@api_view(["GET"])
+def check_bot_status(request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return Response({"error": "Missing or invalid Authorization header"}, status=401)
+
+    id_token = auth_header.split("Bearer ")[1]
+
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        user_id = decoded_token["uid"]
+    except Exception as e:
+        return Response({"error": f"Invalid token: {str(e)}"}, status=401)
+
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("status").document("bot")
+        doc = doc_ref.get()
+
+        if not doc.exists:
+            return Response({
+                "is_running": False,
+                "status": None,
+                "count_before": None,
+                "count_after": None,
+                "non_followers_before": None,
+                "non_followers_after": None,
+                "following_before": None,
+                "following_after": None,
+                "message": "No bot status found.",
+                "type": None,
+                "timestamp": None
+            })
+
+        data = doc.to_dict()
+        is_running = data.get("is_running", False)
+
+        if is_running:
+            # ✅ Only return 'is_running' if it's still running
+            return Response({ "is_running": True })
+
+        # ✅ If done, return full status
+        timestamp_raw = data.get("timestamp")
+        if isinstance(timestamp_raw, datetime):
+            timestamp = timestamp_raw.strftime("%d:%m:%y")
+        else:
+            timestamp = None
+
+        return Response({
+            "is_running": False,
+            "status": data.get("status"),
+            "count_before": data.get("count_before"),
+            "count_after": data.get("count_after") or data.get("count"),
+            "non_followers_before": data.get("non_followers_before"),
+            "non_followers_after": data.get("non_followers_after"),
+            "following_before": data.get("following_before"),
+            "following_after": data.get("following_after"),
+            "message": data.get("message"),
+            "type": data.get("type"),
+            "timestamp": timestamp
+        })
+
+    except Exception as e:
+        return Response({"error": f"Failed to retrieve bot status: {str(e)}"}, status=500)
