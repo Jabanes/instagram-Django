@@ -1,160 +1,120 @@
 from django.core.management.base import BaseCommand
 from base.firebase import db
-from firebase_admin import firestore
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
-import os
-from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-HEADLESS_MODE = os.getenv("HEADLESS", "false").lower() == "true"
+import requests
+import json
+from urllib.parse import urlparse
 
 class InstagramFollowing:
     def __init__(self, time_sleep: int = 10, user=None, cookies=None, profile_url=None) -> None:
         self.time_sleep = time_sleep
-        self.user = user  # Firebase UID (str)
-        self.following = set()
-        self.existing_following = {}
-        self.success = False
+        self.user = user
         self.cookies = cookies or []
         self.profile_url = profile_url
+        self.existing_following = {}
         self.seen_usernames_all = set()
+        self.success = False
 
-
-        environment = os.getenv("ENVIRONMENT", "local")
-        chrome_bin_path = os.getenv("CHROME_BIN", "")
-        chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-
-        chrome_options = uc.ChromeOptions()
-
-        if HEADLESS_MODE:
-            chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--window-size=1920,1080")
-
-        # Decide which binary path to use
-        if environment == "production" and chrome_bin_path:
-            chrome_options.binary_location = chrome_bin_path
-            browser_path = chrome_bin_path
-        else:
-            chrome_options.binary_location = chrome_path
-            browser_path = chrome_path
-
-        # ✅ Instantiate webdriver only ONCE
-        self.webdriver = uc.Chrome(
-            options=chrome_options,
-            browser_executable_path=browser_path,
-            use_subprocess=True
-        )
-
-        print("🌍 ENV:", environment)
-        print("🔥 Headless mode:", HEADLESS_MODE)
-        print("🧠 Chromium binary at:", chrome_options.binary_location)
-
-
-    def open_instagram(self):
-        try:
-            self.webdriver.get("https://www.instagram.com/")
-            self.webdriver.delete_all_cookies()
-            for cookie in self.cookies:
-                cookie.pop("sameSite", None)
-                cookie.pop("hostOnly", None)
-                cookie["domain"] = ".instagram.com"
-                self.webdriver.add_cookie(cookie)
-            self.webdriver.get(self.profile_url)
-            time.sleep(5)
-        except Exception as e:
-            print(f"❌ open_instagram failed: {e}")
-            raise e
-
-    def go_to_following(self):
-        try:
-            print("🔍 Finding Following button...")
-            following_button = WebDriverWait(self.webdriver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/following/')]"))
-            )
-            following_button.click()
-            time.sleep(5)
-        except Exception as e:
-            print(f"⚠️ Error clicking Following button: {str(e)}")
-            self.webdriver.quit()
-            raise e
+    def extract_username_from_url(self):
+        parsed = urlparse(self.profile_url)
+        path = parsed.path.strip("/").split("/")
+        return path[0] if path else None
 
     def load_existing_following(self):
-        print("📥 Loading existing following from Firestore...")
+        print("📥 Loading existing following from Firestore...", flush=True)
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
         docs = collection_ref.stream()
         self.existing_following = {
             doc.to_dict().get("username"): doc.id for doc in docs if doc.to_dict().get("username")
         }
 
-    def scroll_and_extract(self):
+    def fetch_following(self):
+        print("🔐 Setting up session with injected cookies", flush=True)
+        session = requests.Session()
+        for cookie in self.cookies:
+            if "name" not in cookie or "value" not in cookie:
+                continue
+            name = cookie["name"]
+            value = cookie["value"]
+            domain = cookie.get("domain", ".instagram.com")
+            path = cookie.get("path", "/")
+            session.cookies.set(name, value, domain=domain, path=path)
+
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "*/*",
+            "Referer": "https://www.instagram.com/",
+            "X-CSRFToken": session.cookies.get("csrftoken", ""),
+            "X-IG-App-ID": "936619743392459",
+            "X-Requested-With": "XMLHttpRequest"
+        })
+
+        username = self.extract_username_from_url()
+        print(f"🔍 Fetching user ID for {username}", flush=True)
+
+        url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+        res = session.get(url)
+
+        print("🧪 [DEBUG] Status Code:", res.status_code)
+        print("🧪 [DEBUG] Headers:", res.headers)
+        print("🧪 [DEBUG] Final URL:", res.url)
+
         try:
-            print("📜 Scrolling and extracting following...", flush=True)
-            scroll_box = WebDriverWait(self.webdriver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "xyi19xy"))
-            )
-            last_height = self.webdriver.execute_script("return arguments[0].scrollHeight", scroll_box)
-            seen_usernames = set()
-            scroll_attempts = 0
-
-            while True:
-                time.sleep(2)
-                user_blocks = scroll_box.find_elements(
-                    By.XPATH,
-                    ".//div[contains(@class, 'x1yztbdb') or contains(@class, 'x1qjc9v5')]"
-                )
-                current_chunk = set()
-
-                for block in user_blocks:
-                    try:
-                        username_elem = block.find_element(
-                            By.XPATH, ".//span[@class='_ap3a _aaco _aacw _aacx _aad7 _aade']"
-                        )
-                        button_elem = block.find_element(
-                            By.XPATH, ".//div[text()='Following']"
-                        )
-
-                        if username_elem and button_elem:
-                            username = username_elem.text.strip()
-                            if username and username not in seen_usernames:
-                                current_chunk.add(username)
-                                seen_usernames.add(username)
-                                self.seen_usernames_all.add(username)
-                    except (StaleElementReferenceException, NoSuchElementException):
-                        continue
-
-                if current_chunk:
-                    self.process_chunk(current_chunk)
-
-                self.webdriver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_box)
-                time.sleep(2)
-
-                new_height = self.webdriver.execute_script("return arguments[0].scrollHeight", scroll_box)
-                if new_height == last_height:
-                    scroll_attempts += 1
-                    if scroll_attempts > 2:
-                        print("⏹️ Reached end of scroll.", flush=True)
-                        break
-                else:
-                    scroll_attempts = 0
-                    last_height = new_height
-
-            return True
-
+            data = res.json()
         except Exception as e:
-            print(f"❌ Error in scroll_and_extract: {e}", flush=True)
-            raise e
+            print("❌ Failed to parse JSON:", e)
+            print("🧪 Fallback Text (first 500 chars):", res.text[:500])
+            raise
 
+        print("📦 User lookup response:", data)
+
+        try:
+            user_id = data["data"]["user"]["id"]
+        except KeyError:
+            raise Exception(f"❌ Could not extract user ID. Full response: {data}")
+
+        following = set()
+        has_next = True
+        after = None
+        query_hash = "d04b0a864b4b54837c0d870b0e77e076"
+
+        print("📡 Querying following via GraphQL...", flush=True)
+        while has_next:
+            variables = {
+                "id": user_id,
+                "include_reel": True,
+                "fetch_mutual": False,
+                "first": 50,
+            }
+            if after:
+                variables["after"] = after
+
+            params = {
+                "query_hash": query_hash,
+                "variables": json.dumps(variables)
+            }
+
+            res = session.get("https://www.instagram.com/graphql/query/", params=params)
+            if res.status_code != 200:
+                raise Exception(f"GraphQL query failed: {res.status_code}")
+
+            try:
+                data = res.json()
+            except Exception as e:
+                raise Exception(f"Failed to parse GraphQL response: {e}\nRaw: {res.text[:300]}")
+
+            edges = data["data"]["user"]["edge_follow"]["edges"]
+            page_info = data["data"]["user"]["edge_follow"]["page_info"]
+
+            for edge in edges:
+                username = edge["node"]["username"]
+                following.add(username)
+                self.seen_usernames_all.add(username)
+                print(f"➕ {username}", flush=True)
+
+            has_next = page_info["has_next_page"]
+            after = page_info["end_cursor"] if has_next else None
+
+        return following
 
     def process_chunk(self, chunk):
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
@@ -169,9 +129,9 @@ class InstagramFollowing:
             batch.set(doc_ref, {"username": username})
             print(f"✅ Queued to add: {username}", flush=True)
             self.existing_following[username] = doc_ref.id
+
         batch.commit()
         print("📬 Chunk committed to Firestore.", flush=True)
-
 
     def save_removed_users_to_db(self):
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
@@ -188,35 +148,22 @@ class InstagramFollowing:
                 doc_ref = collection_ref.document(doc_id)
                 batch.delete(doc_ref)
                 print(f"❌ Queued to remove: {username}", flush=True)
+
         batch.commit()
         print("🎯 Removed unfollowed users from Firestore.", flush=True)
 
-
     def run(self):
         try:
-            self.open_instagram()
-            self.go_to_following()
             self.load_existing_following()
-
-            scroll_success = self.scroll_and_extract()
-            if scroll_success:
-                self.save_removed_users_to_db()
-                self.success = True
-                print("🎉 Following extraction and sync complete.")
-            else:
-                print("❌ Scrolling failed — aborting save.")
-                self.success = False
-
+            following = self.fetch_following()
+            self.process_chunk(following)
+            self.save_removed_users_to_db()
+            self.success = True
+            print("🎉 Following extraction and sync complete.", flush=True)
         except Exception as e:
-            print(f"❌ Bot failed during run(): {str(e)}")
+            print(f"❌ Following bot error: {str(e)}", flush=True)
             self.success = False
             raise
-
-        finally:
-            try:
-                self.webdriver.quit()
-            except Exception as e:
-                print(f"⚠️ Failed to quit webdriver: {e}")
 
 
 class Command(BaseCommand):
