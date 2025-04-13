@@ -86,6 +86,10 @@ const Home = () => {
         </p>
 
         <p className="text-sm text-white/80">
+        📄 Read our <a href="/privacy-policy" className="underline hover:text-white font-medium">Privacy Policy</a>.
+        </p>
+
+        <p className="text-sm text-white/80">
           🚧 InstaBot is under active development. Expect updates, improvements, and new features in the near future.
         </p>
       </div>

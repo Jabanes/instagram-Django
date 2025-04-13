@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import ChangePassword from './pages/ChangePassword';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import AdSides from './components/AdSides';
 import { useAppSelector } from './app/hooks';
 import ForgotPassword from './pages/ForgotPassword';
@@ -15,6 +16,7 @@ import "./App.css";
 import { useEffect } from "react";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
 
 function App() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
@@ -66,6 +68,7 @@ function App() {
             <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           </Routes>
           {/* <Footer /> */}
 
