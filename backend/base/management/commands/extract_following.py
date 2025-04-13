@@ -4,14 +4,16 @@ import requests
 import json
 from urllib.parse import urlparse
 
+BATCH_LIMIT = 500
+
 class InstagramFollowing:
     def __init__(self, time_sleep: int = 10, user=None, cookies=None, profile_url=None) -> None:
         self.time_sleep = time_sleep
         self.user = user
         self.cookies = cookies or []
         self.profile_url = profile_url
-        self.existing_following = {}
-        self.seen_usernames_all = set()
+        self.existing_following = set()
+        self.existing_docs = {}
         self.success = False
 
     def extract_username_from_url(self):
@@ -23,9 +25,12 @@ class InstagramFollowing:
         print("📥 Loading existing following from Firestore...", flush=True)
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
         docs = collection_ref.stream()
-        self.existing_following = {
-            doc.to_dict().get("username"): doc.id for doc in docs if doc.to_dict().get("username")
-        }
+        for doc in docs:
+            data = doc.to_dict()
+            username = data.get("username")
+            if username:
+                self.existing_following.add(username)
+                self.existing_docs[username] = doc.id
 
     def fetch_following(self):
         print("🔐 Setting up session with injected cookies", flush=True)
@@ -54,18 +59,12 @@ class InstagramFollowing:
         url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
         res = session.get(url)
 
-        print("🧪 [DEBUG] Status Code:", res.status_code)
-        print("🧪 [DEBUG] Headers:", res.headers)
-        print("🧪 [DEBUG] Final URL:", res.url)
-
         try:
             data = res.json()
         except Exception as e:
             print("❌ Failed to parse JSON:", e)
             print("🧪 Fallback Text (first 500 chars):", res.text[:500])
             raise
-
-        print("📦 User lookup response:", data)
 
         try:
             user_id = data["data"]["user"]["id"]
@@ -108,7 +107,6 @@ class InstagramFollowing:
             for edge in edges:
                 username = edge["node"]["username"]
                 following.add(username)
-                self.seen_usernames_all.add(username)
                 print(f"➕ {username}", flush=True)
 
             has_next = page_info["has_next_page"]
@@ -116,48 +114,44 @@ class InstagramFollowing:
 
         return following
 
-    def process_chunk(self, chunk):
+    def sync_following(self, fetched_following):
+        to_add = fetched_following - self.existing_following
+        to_remove = self.existing_following - fetched_following
+
+        print(f"🆕 New following to add: {len(to_add)}")
+        print(f"🗑️ Following to remove: {len(to_remove)}")
+
         collection_ref = db.collection("users").document(str(self.user)).collection("followings")
-        new_users = chunk - set(self.existing_following.keys())
-        if not new_users:
-            return
 
-        print(f"📦 Saving {len(new_users)} new following...", flush=True)
-        batch = db.batch()
-        for username in new_users:
-            doc_ref = collection_ref.document()
-            batch.set(doc_ref, {"username": username})
-            print(f"✅ Queued to add: {username}", flush=True)
-            self.existing_following[username] = doc_ref.id
+        # Batched ADD
+        to_add = list(to_add)
+        for i in range(0, len(to_add), BATCH_LIMIT):
+            batch = db.batch()
+            chunk = to_add[i:i + BATCH_LIMIT]
+            for username in chunk:
+                doc_ref = collection_ref.document()
+                batch.set(doc_ref, {"username": username})
+            batch.commit()
+            print(f"✅ Batch added {len(chunk)} users")
 
-        batch.commit()
-        print("📬 Chunk committed to Firestore.", flush=True)
-
-    def save_removed_users_to_db(self):
-        collection_ref = db.collection("users").document(str(self.user)).collection("followings")
-        to_remove = set(self.existing_following.keys()) - self.seen_usernames_all
-        if not to_remove:
-            print("✅ No following to remove.", flush=True)
-            return
-
-        print(f"➖ To Remove: {to_remove}", flush=True)
-        batch = db.batch()
-        for username in to_remove:
-            doc_id = self.existing_following.get(username)
-            if doc_id:
-                doc_ref = collection_ref.document(doc_id)
-                batch.delete(doc_ref)
-                print(f"❌ Queued to remove: {username}", flush=True)
-
-        batch.commit()
-        print("🎯 Removed unfollowed users from Firestore.", flush=True)
+        # Batched REMOVE
+        to_remove = list(to_remove)
+        for i in range(0, len(to_remove), BATCH_LIMIT):
+            batch = db.batch()
+            chunk = to_remove[i:i + BATCH_LIMIT]
+            for username in chunk:
+                doc_id = self.existing_docs.get(username)
+                if doc_id:
+                    doc_ref = collection_ref.document(doc_id)
+                    batch.delete(doc_ref)
+            batch.commit()
+            print(f"🧹 Batch removed {len(chunk)} users")
 
     def run(self):
         try:
             self.load_existing_following()
-            following = self.fetch_following()
-            self.process_chunk(following)
-            self.save_removed_users_to_db()
+            fetched = self.fetch_following()
+            self.sync_following(fetched)
             self.success = True
             print("🎉 Following extraction and sync complete.", flush=True)
         except Exception as e:
@@ -167,17 +161,22 @@ class InstagramFollowing:
 
 
 class Command(BaseCommand):
-    help = "Extract following and save them in Firestore"
+    help = "Extract following and sync with Firestore"
 
     def add_arguments(self, parser):
         parser.add_argument('user_id', type=str)
+        parser.add_argument('--cookies', type=str, help="Cookies JSON string")
+        parser.add_argument('--profile_url', type=str, help="Instagram profile URL")
 
     def handle(self, *args, **kwargs):
         user_id = kwargs['user_id']
-        bot = InstagramFollowing(user=user_id)
+        cookies = json.loads(kwargs.get('cookies') or "[]")
+        profile_url = kwargs.get('profile_url') or ""
+
+        bot = InstagramFollowing(user=user_id, cookies=cookies, profile_url=profile_url)
         bot.run()
 
         if bot.success:
-            self.stdout.write(self.style.SUCCESS(f"✅ Successfully saved following for user {user_id}"))
+            self.stdout.write(self.style.SUCCESS(f"✅ Successfully synced following for user {user_id}"))
         else:
-            self.stdout.write(self.style.ERROR(f"❌ No data extracted for user {user_id}"))
+            self.stdout.write(self.style.ERROR(f"❌ Failed to sync following for user {user_id}"))

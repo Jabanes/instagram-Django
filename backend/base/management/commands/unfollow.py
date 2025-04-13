@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BATCH_LIMIT = 500
+
 
 class InstagramUnfollower:
     def __init__(self, user=None, cookies=None, profile_url=None, time_sleep=5):
@@ -20,6 +22,8 @@ class InstagramUnfollower:
         self.success = False
         self.unfollowed = []
         self.time_sleep = time_sleep
+        self.non_followers = {}  # username -> doc_id
+        self.followings = {}     # username -> doc_id
 
     def wait(self):
         time.sleep(random.uniform(self.time_sleep, self.time_sleep + 2))
@@ -40,6 +44,26 @@ class InstagramUnfollower:
         })
         return session
 
+    def load_non_followers(self):
+        print("📥 Loading non-followers from Firestore...")
+        docs = db.collection("users").document(str(self.user)).collection("non_followers").stream()
+        for doc in docs:
+            data = doc.to_dict()
+            username = data.get("username")
+            if username:
+                self.non_followers[username] = doc.id
+        print(f"📊 Loaded {len(self.non_followers)} non-followers")
+
+    def load_followings(self):
+        print("📥 Loading followings from Firestore...")
+        docs = db.collection("users").document(str(self.user)).collection("followings").stream()
+        for doc in docs:
+            data = doc.to_dict()
+            username = data.get("username")
+            if username:
+                self.followings[username] = doc.id
+        print(f"📊 Loaded {len(self.followings)} followings")
+
     def get_user_id(self, session, username):
         url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
         res = session.get(url)
@@ -57,10 +81,31 @@ class InstagramUnfollower:
             print(f"❌ Failed to unfollow {username} ({res.status_code}): {res.text}")
             return False
 
+    def batch_delete_usernames(self, usernames, collection_name, id_map):
+        if not usernames:
+            return
+
+        print(f"🧹 Deleting {len(usernames)} from {collection_name}")
+        collection_ref = db.collection("users").document(str(self.user)).collection(collection_name)
+        usernames = list(usernames)
+
+        for i in range(0, len(usernames), BATCH_LIMIT):
+            batch = db.batch()
+            chunk = usernames[i:i + BATCH_LIMIT]
+            for username in chunk:
+                doc_id = id_map.get(username)
+                if doc_id:
+                    doc_ref = collection_ref.document(doc_id)
+                    batch.delete(doc_ref)
+            batch.commit()
+            print(f"🗑️ Batch deleted {len(chunk)} from {collection_name}")
+
     def run(self):
         session = self.build_session()
-        usernames = [n["username"] for n in NonFollowerStore.list(self.user)]
+        self.load_non_followers()
+        self.load_followings()
 
+        usernames = list(self.non_followers.keys())
         if not usernames:
             print("⚠️ No users in unfollow list.")
             return
@@ -71,8 +116,6 @@ class InstagramUnfollower:
                 self.wait()
 
                 if self.unfollow_user(session, user_id, username):
-                    NonFollowerStore.delete(self.user, username)
-                    FollowingStore.delete(self.user, username)
                     self.unfollowed.append(username)
                 else:
                     print(f"⚠️ Skipped {username} due to unfollow failure.\n")
@@ -81,8 +124,10 @@ class InstagramUnfollower:
                 continue
 
         if self.unfollowed:
-            self.success = True
             print(f"🎯 Finished unfollowing {len(self.unfollowed)} users.")
+            self.batch_delete_usernames(self.unfollowed, "non_followers", self.non_followers)
+            self.batch_delete_usernames(self.unfollowed, "followings", self.followings)
+            self.success = True
         else:
             print("📭 No users were unfollowed.")
 
@@ -92,10 +137,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("user_id", type=str)
+        parser.add_argument("--cookies", type=str, help="Cookies JSON string")
+        parser.add_argument("--profile_url", type=str, help="Instagram profile URL")
 
     def handle(self, *args, **kwargs):
         user_id = kwargs["user_id"]
-        bot = InstagramUnfollower(user=user_id)
+        cookies = json.loads(kwargs.get("cookies") or "[]")
+        profile_url = kwargs.get("profile_url") or ""
+
+        bot = InstagramUnfollower(user=user_id, cookies=cookies, profile_url=profile_url)
         bot.run()
 
         if bot.success:
