@@ -240,20 +240,20 @@ def run_instagram_followers_script(request):
         return Response({"status": "❌ Bot already running for this user"}, status=429)
 
 
+
+    if not bot_semaphore.acquire(blocking=False):
+        print("⚠️ Too many global bots running. Rejecting.")
+        BotStatusStore.set_running(user_id, False)
+        return Response(
+            {
+                "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+            },
+            status=429  # Too Many Requests
+        )
+
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
-
-        if not bot_semaphore.acquire(blocking=False):
-            print("⚠️ Too many global bots running. Rejecting.")
-            BotStatusStore.set_running(user_id, False)
-            return Response(
-        {
-            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
-        },
-        status=429  # Too Many Requests
-        )
-        
         threading.current_thread().name = "followers-bot-thread"
 
         try:
@@ -327,20 +327,20 @@ def run_unfollow_non_followers_script(request):
     if current_status and current_status.get("is_running"):
         return Response({"status": "❌ Bot already running for this user"}, status=429)
     
+      
+    if not bot_semaphore.acquire(blocking=False):
+        print("⚠️ Too many global bots running. Rejecting.")
+        BotStatusStore.set_running(user_id, False)
+        return Response(
+            {
+                "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+            },
+            status=429  # Too Many Requests
+        )
+        
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
-
-        if not bot_semaphore.acquire(blocking=False):
-            print("⚠️ Too many global bots running. Rejecting.")
-            BotStatusStore.set_running(user_id, False)
-            return Response(
-        {
-            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
-        },
-        status=429  # Too Many Requests
-        )
-      
         threading.current_thread().name = "unfollow-bot-thread"
         try:
             before_nf = len(list(db.collection("users").document(user_id).collection("non_followers").stream()))
@@ -427,22 +427,21 @@ def run_instagram_following_script(request):
     if current_status and current_status.get("is_running"):
         return Response({"status": "❌ Bot already running for this user"}, status=429)
 
+
+    if not bot_semaphore.acquire(blocking=False):
+        print("⚠️ Too many global bots running. Rejecting.")
+        BotStatusStore.set_running(user_id, False)
+        return Response(
+            {
+                "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+            },
+            status=429  # Too Many Requests
+        )
+    
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
-
-        if not bot_semaphore.acquire(blocking=False):
-            print("⚠️ Too many global bots running. Rejecting.")
-            BotStatusStore.set_running(user_id, False)
-            return Response(
-        {
-            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
-        },
-        status=429  # Too Many Requests
-        )
-
         threading.current_thread().name = "following-bot-thread"
-
         try:
             print("🔥 run_bot_async STARTED", flush=True)
             before = len(FollowingStore.list(user_id))
