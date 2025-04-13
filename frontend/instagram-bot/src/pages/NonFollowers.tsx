@@ -13,16 +13,13 @@ type Props = {
   followersCount: number | 0;
   followingCount: number | 0;
   botStatus: "success" | "error" | "no_change" | "";
-  newDataDetected: boolean;
   selectedAction: string | null;  // ✅ add this line
-  checkNewDataFlag: () => void;
   handleSelectAction: (action: string, callback: () => void) => void;
 };
 
 const NonFollowers: React.FC<Props> = ({
   followersCount,
   followingCount,
-  checkNewDataFlag,
   handleSelectAction,
   selectedAction
 }) => {
@@ -57,10 +54,6 @@ const NonFollowers: React.FC<Props> = ({
       setButtonLabel("Reset List");
     }
   }, [nonFollowers, newDataFlag]);
-
-  useEffect(() => {
-    checkNewDataFlag();
-  }, []);
 
   const fetchNonFollowers = async () => {
     setLoading(true);

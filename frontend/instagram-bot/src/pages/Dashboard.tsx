@@ -12,14 +12,12 @@ const Dashboard = () => {
   const [followingCount, setFollowingCount] = useState<number | 0>(0);
   const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(null);
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
-  const [newDataDetected, setNewDataDetected] = useState(false);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [isBotRunning, setIsBotRunning] = useState<boolean>(false);
-  const [extensionId, setExtensionId] = useState<string | null>(null);
-
   const token = localStorage.getItem("token");
-  
- 
+
+  const EXTENSION_ID = "dcoiahgajkjopndopoaeiigpgkhcjocm"; // Replace with your extension ID
+
 
   useEffect(() => {
     const handleAuthAndInject = async () => {
@@ -32,7 +30,7 @@ const Dashboard = () => {
           // ✅ Inject into extension
           if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
             chrome.runtime.sendMessage(
-              "dcoiahgajkjopndopoaeiigpgkhcjocm", // your extension ID
+              EXTENSION_ID, // your extension ID
               { action: "saveFirebaseToken", token },
               (response: any) => {
                 console.log("📩 Sent token to extension:", response);
@@ -82,10 +80,6 @@ const Dashboard = () => {
   }, []);
 
 
-  const send = (action: string, payload: any) => {
-    chrome.runtime.sendMessage(extensionId, { action, ...payload });
-  };
-  
 
   const handleSelectAction = (action: string, callback: () => void) => {
     if (selectedAction === action) {
@@ -95,33 +89,6 @@ const Dashboard = () => {
       callback(); // Call original function
     }
   };
-
-  const checkNewDataFlag = async () => {
-    try {
-      const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/check-data`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.data.new_data) {
-        setNewDataDetected(true);
-      }
-    } catch (err) {
-      console.error("⚠️ Error checking new data flag:", err);
-    }
-  };
-
-  useEffect(() => {
-    // Fetch ID of the installed extension
-    chrome.runtime.sendMessage(undefined, "getExtensionId", (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("Failed to get extension ID", chrome.runtime.lastError);
-        return;
-      }
-      setExtensionId(response?.id);
-    });
-  }, []);
 
   
   useEffect(() => {
@@ -194,10 +161,24 @@ const Dashboard = () => {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Missing Firebase token");
 
+      // ✅ Send token to extension
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "saveFirebaseToken",
+        token
+      });
 
-      send("saveFirebaseToken", { token });
-      send("setTargetEndpoint", { endpoint });
-      send("setSelectedAction", { label: "Scan Following" });
+      // ✅ Send endpoint to extension
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "setTargetEndpoint",
+        endpoint
+
+      });
+
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "setSelectedAction",
+        label: "Scan Following"  // or "Unfollow", "Get Following", etc.
+      });
+
 
       console.log("📬 Token and endpoint sent to extension.");
 
@@ -211,9 +192,9 @@ const Dashboard = () => {
         theme: "colored",
       });
 
-      // // Optional: log to track
-      // console.log(`📦 Token: ${token}`);
-      // console.log(`📦 Endpoint: ${endpoint}`);
+      // Optional: log to track
+      console.log(`📦 Token: ${token}`);
+      console.log(`📦 Endpoint: ${endpoint}`);
 
     } catch (err) {
       console.error("❌ Failed to prepare bot command:", err);
@@ -230,13 +211,26 @@ const Dashboard = () => {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Missing Firebase token");
 
-      send("saveFirebaseToken", { token });
-      send("setTargetEndpoint", { endpoint});
-      send("setSelectedAction", { label: "Scan Followers" });
+      // ✅ Send token to extension
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "saveFirebaseToken",
+        token
+      });
 
-      // console.log("📬 Token and endpoint sent to extension.");
-      // console.log(`📦 Token: ${token}`);
-      // console.log(`📦 Endpoint: ${endpoint}`);
+      // ✅ Send endpoint to extension
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "setTargetEndpoint",
+        endpoint
+      });
+
+      chrome.runtime.sendMessage(EXTENSION_ID, {
+        action: "setSelectedAction",
+        label: "Scan Followers"  // or "Unfollow", "Get Following", etc.
+      });
+
+      console.log("📬 Token and endpoint sent to extension.");
+      console.log(`📦 Token: ${token}`);
+      console.log(`📦 Endpoint: ${endpoint}`);
 
       toast.info("Followers Selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
         position: "top-center",
@@ -335,8 +329,6 @@ const Dashboard = () => {
             followersCount={followersCount}
             followingCount={followingCount}
             botStatus={botStatus}
-            newDataDetected={newDataDetected}
-            checkNewDataFlag={checkNewDataFlag}
             selectedAction={selectedAction}
             handleSelectAction={handleSelectAction}
           />
