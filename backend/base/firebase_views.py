@@ -16,6 +16,11 @@ from django.core.management import call_command
 from socket import error as SocketError
 import errno
 import threading
+from threading import BoundedSemaphore, Thread
+
+
+MAX_CONCURRENT_BOTS = 3
+bot_semaphore = BoundedSemaphore(MAX_CONCURRENT_BOTS)
 
 @api_view(['POST'])
 def login(request):
@@ -229,10 +234,28 @@ def run_instagram_followers_script(request):
     if not cookies or not profile_url:
         return Response({"error": "Missing cookies or profile URL"}, status=400)
 
+    current_status = BotStatusStore.get_status(user_id)
+
+    if current_status and current_status.get("is_running"):
+        return Response({"status": "❌ Bot already running for this user"}, status=429)
+
+
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
-        threading.current_thread().name = "selenium-bot-thread"
+
+        if not bot_semaphore.acquire(blocking=False):
+            print("⚠️ Too many global bots running. Rejecting.")
+            BotStatusStore.set_running(user_id, False)
+            return Response(
+        {
+            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+        },
+        status=429  # Too Many Requests
+        )
+        
+        threading.current_thread().name = "followers-bot-thread"
+
         try:
             print("🔥 run_bot_async STARTED", flush=True)
             count_before = len(FollowerStore.list(user_id))
@@ -271,6 +294,7 @@ def run_instagram_followers_script(request):
                 "message": str(e)
             })
         finally:
+            bot_semaphore.release()
             BotStatusStore.set_running(user_id, False)
 
     Thread(target=run_bot_async).start()
@@ -298,9 +322,26 @@ def run_unfollow_non_followers_script(request):
     if not cookies or not profile_url:
         return Response({"error": "Missing cookies or profile URL"}, status=400)
 
+    current_status = BotStatusStore.get_status(user_id)
+
+    if current_status and current_status.get("is_running"):
+        return Response({"status": "❌ Bot already running for this user"}, status=429)
+    
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
+
+        if not bot_semaphore.acquire(blocking=False):
+            print("⚠️ Too many global bots running. Rejecting.")
+            BotStatusStore.set_running(user_id, False)
+            return Response(
+        {
+            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+        },
+        status=429  # Too Many Requests
+        )
+      
+        threading.current_thread().name = "unfollow-bot-thread"
         try:
             before_nf = len(list(db.collection("users").document(user_id).collection("non_followers").stream()))
             before_following = len(list(db.collection("users").document(user_id).collection("followings").stream()))
@@ -347,6 +388,7 @@ def run_unfollow_non_followers_script(request):
                 "message": str(e)
             })
         finally:
+            bot_semaphore.release()
             BotStatusStore.set_running(user_id, False)
 
     Thread(target=run_bot_async).start()
@@ -380,9 +422,27 @@ def run_instagram_following_script(request):
     if not cookies or not profile_url:
         return Response({"error": "Missing cookies or profile URL"}, status=400)
 
+    current_status = BotStatusStore.get_status(user_id)
+
+    if current_status and current_status.get("is_running"):
+        return Response({"status": "❌ Bot already running for this user"}, status=429)
+
     BotStatusStore.set_running(user_id, True)
 
     def run_bot_async():
+
+        if not bot_semaphore.acquire(blocking=False):
+            print("⚠️ Too many global bots running. Rejecting.")
+            BotStatusStore.set_running(user_id, False)
+            return Response(
+        {
+            "error": "⚠️ Too many users are running bots right now. Please try again in a few moments."
+        },
+        status=429  # Too Many Requests
+        )
+
+        threading.current_thread().name = "following-bot-thread"
+
         try:
             print("🔥 run_bot_async STARTED", flush=True)
             before = len(FollowingStore.list(user_id))
@@ -423,6 +483,7 @@ def run_instagram_following_script(request):
                 "message": str(e)
             })
         finally:
+            bot_semaphore.release()
             BotStatusStore.set_running(user_id, False)
 
     Thread(target=run_bot_async).start()
