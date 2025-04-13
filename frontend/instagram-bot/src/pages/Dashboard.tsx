@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import NonFollowers from './NonFollowers';
-import Confirm from "../components/Confirm"
 import { auth } from "../app/firebase";
-import { toast, ToastContainer } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const Dashboard = () => {
@@ -14,7 +13,6 @@ const Dashboard = () => {
   const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [isBotRunning, setIsBotRunning] = useState<boolean>(false);
-  const token = localStorage.getItem("token");
 
   const EXTENSION_ID = "dcoiahgajkjopndopoaeiigpgkhcjocm"; // Replace with your extension ID
 

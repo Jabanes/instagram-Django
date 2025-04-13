@@ -15,7 +15,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import "./App.css";
 import { Button } from "./components/UI/button";
 import { useState } from "react";
-import { toast, ToastContainer } from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 

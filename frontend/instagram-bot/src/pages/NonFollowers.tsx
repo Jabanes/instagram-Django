@@ -2,11 +2,10 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { NonFollower } from "../models/NonFollower";
-import Confirm from "../components/Confirm"
 import { useNavigate } from "react-router-dom";
 import ConfirmModal from "../components/Confirm";
 import { auth } from "../app/firebase";
-import { toast, ToastContainer } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 type Props = {
@@ -28,7 +27,6 @@ const NonFollowers: React.FC<Props> = ({
   const [message, setMessage] = useState<string | null>(null);
   const [buttonLabel, setButtonLabel] = useState("Create Non-Follower List");
   const [newDataFlag, setNewDataDetected] = useState<boolean>(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [showEveryoneFollowsModal, setShowEveryoneFollowsModal] = useState(false);
 
   const navigate = useNavigate();
