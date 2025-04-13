@@ -13,13 +13,25 @@ import AdSides from './components/AdSides';
 import { useAppSelector } from './app/hooks';
 import ForgotPassword from './pages/ForgotPassword';
 import "./App.css";
-import { useEffect } from "react";
+import { Button } from "./components/UI/button";
+import { useState } from "react";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 
 function App() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const [showPopup, setShowPopup] = useState(false);
+  
+
+  const handleAccept = () => {
+    setShowPopup(false);
+  };
+
+  const handleDontShowAgain = () => {
+    localStorage.setItem("hideRules", "true");
+    setShowPopup(false);
+  };
 
   return (
     <Router>
@@ -61,7 +73,7 @@ function App() {
 
         <div className="relative z-10 px-4 sm:px-6 lg:px-8">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Home showPopup={showPopup} setShowPopup={setShowPopup} />} />
             <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/profile" element={<Profile />} />
@@ -70,10 +82,47 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           </Routes>
-          {/* <Footer /> */}
+          <Footer onTermsClick={() => setShowPopup(true)} />
 
         </div>
       </div>
+
+
+      {showPopup && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xl text-gray-800 relative">
+            <h2 className="text-2xl font-bold text-pink-600 mb-4">Rules & Guidelines</h2>
+            <p className="mb-2 text-sm">
+              <strong>Please read and understand the following before using InstaBot:</strong>
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-sm mb-4">
+              <li>This bot may violate Instagram's Terms of Service. Use at your own risk.</li>
+              <li>The Bot is only compatible with the Extension, You can get it for free here: (link to extension).</li>
+              <li>The Extension needs your cookies to utilize the bot functionality</li>
+              <li>Your Credentials are safe, once cookies are used they are not stored or saved anywhere.</li>
+              <li>By using this bot, you accept all associated risks, including the possibility of account restrictions or bans.</li>
+              <li>The bot is currently supported by Windows and does not work on mobile devices.</li>
+              <li>Due to frequent updates from Instagram, the bot may occasionally stop working properly.</li>
+              <li>For bug reports or issues, please contact: <strong>erezhabani2003@gmail.com</strong></li>
+              <li>This tool is built by a solo developer and is still under active development — bugs and limitations are to be expected.</li>
+            </ul>
+            <div className="flex justify-between mt-6">
+              <Button
+                className="bg-gray-200 text-gray-800 hover:bg-gray-300 px-4 py-2 rounded-md"
+                onClick={handleDontShowAgain}
+              >
+                Don’t Show Again
+              </Button>
+              <Button
+                className="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-md"
+                onClick={handleAccept}
+              >
+                I have read and accept
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>
         {`
@@ -92,3 +141,4 @@ function App() {
 }
 
 export default App;
+
