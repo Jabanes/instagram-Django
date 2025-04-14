@@ -5,11 +5,14 @@ import { loginUser } from '../features/auth/authAPI';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "../components/UI/card";
 import { Button } from "../components/UI/button";
+import { setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { auth } from "../app/firebase";
+
 
 export default function InstagramLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-
+  const [rememberMe, setRememberMe] = useState(false);
 
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -17,6 +20,10 @@ export default function InstagramLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+
+      const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistence);
+
       const data = await loginUser(username, password);
 
       // Dispatch the login action with the mapped user data
@@ -25,6 +32,7 @@ export default function InstagramLogin() {
       // Store the user and access token in localStorage
       localStorage.setItem('token', data.access);
       localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
 
       // Navigate to the dashboard after successful login
       navigate('/dashboard');
@@ -80,6 +88,18 @@ export default function InstagramLogin() {
             <Button type="submit" className="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 rounded-lg transition duration-200">
               Login
             </Button>
+
+            <div className="flex items-center">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="mr-2"
+              />
+              <label htmlFor="rememberMe" className="text-sm text-gray-600">Remember Me</label>
+            </div>
+
           </form>
           <p className="text-sm text-center text-gray-500 mt-4">
             Don’t have an account? <a href="/signup" className="text-pink-600 hover:underline">Sign up</a>

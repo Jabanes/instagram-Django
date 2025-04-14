@@ -4,18 +4,86 @@ import NonFollowers from './NonFollowers';
 import { auth } from "../app/firebase";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { onIdTokenChanged } from "firebase/auth";
+import { useNavigate } from 'react-router-dom';
+import { useAppDispatch } from '../app/hooks';
+import { logout } from '../features/auth/authSlice';
 
 const Dashboard = () => {
+
+  const formatDate = (dateStr: string | null): string | null => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return date.toLocaleString('he-IL', {
+      timeZone: 'Asia/Jerusalem',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
   const [botStatus, setBotStatus] = useState<"success" | "error" | "no_change" | "">("");
-  const [followersCount, setFollowersCount] = useState<number | 0>(0);
-  const [followingCount, setFollowingCount] = useState<number | 0>(0);
-  const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(null);
-  const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(null);
+  const [followersCount, setFollowersCount] = useState<number>(() => {
+    const cache = localStorage.getItem("cached_stats");
+    return cache ? JSON.parse(cache).followers : 0;
+  });
+
+  const [followingCount, setFollowingCount] = useState<number>(() => {
+    const cache = localStorage.getItem("cached_stats");
+    return cache ? JSON.parse(cache).following : 0;
+  });
+  const [lastFollowersScan, setLastFollowersScan] = useState<string | null>(() => {
+    const cache = localStorage.getItem("cached_stats");
+    return cache ? formatDate(JSON.parse(cache).last_followers_scan) : null;
+  });
+
+  const [lastFollowingScan, setLastFollowingScan] = useState<string | null>(() => {
+    const cache = localStorage.getItem("cached_stats");
+    return cache ? formatDate(JSON.parse(cache).last_following_scan) : null;
+  });
+
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [isBotRunning, setIsBotRunning] = useState<boolean>(false);
 
   const EXTENSION_ID = "dcoiahgajkjopndopoaeiigpgkhcjocm"; // Replace with your extension ID
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
+
+  useEffect(() => {
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (!user) {
+        // User signed out
+        localStorage.removeItem("firebase_token");
+        dispatch(logout());
+        navigate("/login");
+        return;
+      }
+
+      try {
+        const token = await user.getIdToken(true); // force refresh
+        localStorage.setItem("firebase_token", token);
+      } catch (err) {
+        console.error("🔥 Token refresh failed:", err);
+        const remember = localStorage.getItem("rememberMe") === 'true';
+
+        if (!remember) {
+          dispatch(logout());
+          localStorage.clear();
+          navigate("/login");
+          toast.warn("Session expired. Please log in again.");
+        } else {
+          console.warn("⚠️ Token expired, but 'remember me' is enabled — user stays logged in.");
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const handleAuthAndInject = async () => {
@@ -88,7 +156,7 @@ const Dashboard = () => {
     }
   };
 
-  
+
   useEffect(() => {
     console.log(botStatus);
 
@@ -115,41 +183,18 @@ const Dashboard = () => {
       setFollowersCount(followers);
       setFollowingCount(following);
 
-      if (last_followers_scan) {
-        const date = new Date(last_followers_scan);
-        const formatted = date.toLocaleString('he-IL', {
-          timeZone: 'Asia/Jerusalem',
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        });
-        setLastFollowersScan(formatted);
-      }
-
-      if (last_following_scan) {
-        const date = new Date(last_following_scan);
-        const formatted = date.toLocaleString('he-IL', {
-          timeZone: 'Asia/Jerusalem',
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        });
-        setLastFollowingScan(formatted);
-      }
+      localStorage.setItem("cached_stats", JSON.stringify({
+        followers, following,
+        last_followers_scan,
+        last_following_scan
+      }));
 
     } catch (err) {
       console.error("Failed to fetch follow stats:", err);
     }
   };
 
+  
   const getFollowing = async () => {
     setBotStatus("");
 
@@ -178,7 +223,7 @@ const Dashboard = () => {
       });
 
 
-      console.log("📬 Token and endpoint sent to extension.");
+      // console.log("📬 Token and endpoint sent to extension.");
 
       toast.info("Following Selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
         position: "top-center",
@@ -190,9 +235,9 @@ const Dashboard = () => {
         theme: "colored",
       });
 
-      // Optional: log to track
-      console.log(`📦 Token: ${token}`);
-      console.log(`📦 Endpoint: ${endpoint}`);
+      // // Optional: log to track
+      // console.log(`📦 Token: ${token}`);
+      // console.log(`📦 Endpoint: ${endpoint}`);
 
     } catch (err) {
       console.error("❌ Failed to prepare bot command:", err);
@@ -226,9 +271,9 @@ const Dashboard = () => {
         label: "Scan Followers"  // or "Unfollow", "Get Following", etc.
       });
 
-      console.log("📬 Token and endpoint sent to extension.");
-      console.log(`📦 Token: ${token}`);
-      console.log(`📦 Endpoint: ${endpoint}`);
+      // console.log("📬 Token and endpoint sent to extension.");
+      // console.log(`📦 Token: ${token}`);
+      // console.log(`📦 Endpoint: ${endpoint}`);
 
       toast.info("Followers Selected! Click the Chrome extension icon and hit 'Send to Bot' to start the script.", {
         position: "top-center",
@@ -251,7 +296,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex flex-col items-center justify-start py-16 px-4 relative overflow-hidden">
       {/* Floating animated icons */}
 
-      
+
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
         {Array.from({ length: 15 }).map((_, i) => (
           <div
