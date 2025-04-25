@@ -36,7 +36,7 @@ function App() {
   return (
     <Router>
       <Navbar />
-      <AdSides />
+      {/* <AdSides /> */}
       <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 relative overflow-hidden py-10">
         {/* Floating background icons */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">

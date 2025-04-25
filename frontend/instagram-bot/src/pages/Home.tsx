@@ -58,7 +58,6 @@ const Home: React.FC<HomeProps> = ({ showPopup, setShowPopup }) => {
             <li>Log in to your Instagram account using your browser.</li>
             <li>Go to your profile and open the exstension</li>
             <li>Click "Send to" in the extension to begin the process.</li>
-           
             <li>After both scans are complete, a new button will appear:
               ➤ "Generate Non-Followers List"
               ⚠️ Wait untill you see the notification to ensure the action was selected propely

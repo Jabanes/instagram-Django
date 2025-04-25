@@ -3,6 +3,9 @@ from base.firebase_stores import FollowerStore, FollowingStore, NonFollowerStore
 from base.firebase import db
 import os
 import tempfile
+from google.cloud import firestore
+
+BATCH_LIMIT = 500
 
 class Command(BaseCommand):
     help = "Find users who don’t follow back and save in Firebase"
@@ -13,7 +16,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         user_id = kwargs['user_id']
 
-        # Fetch followers and followings
+        # Fetch followers and followings (1 read each)
         followers = set(f["username"] for f in FollowerStore.list(user_id))
         followings = set(f["username"] for f in FollowingStore.list(user_id))
 
@@ -26,9 +29,16 @@ class Command(BaseCommand):
         # Clear previous non-followers
         NonFollowerStore.clear(user_id)
 
-        # Save updated non-followers
-        for username in non_followers:
-            NonFollowerStore.add(user_id, username)
+        # Batched writes for new non-followers
+        collection_ref = db.collection("users").document(user_id).collection("non_followers")
+        for i in range(0, len(non_followers), BATCH_LIMIT):
+            batch = db.batch()
+            chunk = non_followers[i:i + BATCH_LIMIT]
+            for username in chunk:
+                doc_ref = collection_ref.document()
+                batch.set(doc_ref, {"username": username})
+            batch.commit()
+            print(f"✅ Batch added {len(chunk)} non-followers")
 
         # Create flag for frontend
         flag_path = os.path.join(tempfile.gettempdir(), f"new_data_flag_user_{user_id}.flag")
