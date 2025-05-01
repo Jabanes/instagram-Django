@@ -66,7 +66,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3000",
     "https://instabot-ca8d9.firebaseapp.com",
-    "chrome-extension://dcoiahgajkjopndopoaeiigpgkhcjocm",
+    "chrome-extension://pfnfjihjeoadnnceeanddmmflkahbfhf",
+    "chrome-extension://kpobldejmmgjpcipmkiidcgcmegideph",
+
+    
 ]
 
 REST_FRAMEWORK = {

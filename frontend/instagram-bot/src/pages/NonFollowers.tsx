@@ -13,6 +13,7 @@ type Props = {
   followingCount: number | 0;
   botStatus: "success" | "error" | "no_change" | "";
   selectedAction: string | null;  // ✅ add this line
+  extensionId: string | null; // ✅ add this line
   handleSelectAction: (action: string, callback: () => void) => void;
 };
 
@@ -20,7 +21,8 @@ const NonFollowers: React.FC<Props> = ({
   followersCount,
   followingCount,
   handleSelectAction,
-  selectedAction
+  selectedAction,
+  extensionId
 }) => {
   const [nonFollowers, setNonFollowers] = useState<NonFollower[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +33,8 @@ const NonFollowers: React.FC<Props> = ({
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-
+  const EXTENSION_ID = extensionId; // Replace with your extension ID
+  
   useEffect(() => {
     const localList = localStorage.getItem("nonFollowers");
     if (localList) {
@@ -132,18 +135,18 @@ const NonFollowers: React.FC<Props> = ({
       );
   
       // ✅ Step 2: Send token to extension
-      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+      chrome.runtime.sendMessage(EXTENSION_ID, {
         action: "saveFirebaseToken",
         token,
       });
   
       // ✅ Step 3: Send unfollow endpoint to extension
-      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+      chrome.runtime.sendMessage(EXTENSION_ID, {
         action: "setTargetEndpoint",
         endpoint
       });
       
-      chrome.runtime.sendMessage("dcoiahgajkjopndopoaeiigpgkhcjocm", {
+      chrome.runtime.sendMessage(EXTENSION_ID, {
         action: "setSelectedAction",
         label: "Unfollow listed users"  // or "Unfollow", "Get Following", etc.
       });

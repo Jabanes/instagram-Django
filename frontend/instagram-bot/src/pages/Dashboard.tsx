@@ -49,10 +49,11 @@ const Dashboard = () => {
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [isBotRunning, setIsBotRunning] = useState<boolean>(false);
 
-  const EXTENSION_ID = "dcoiahgajkjopndopoaeiigpgkhcjocm"; // Replace with your extension ID
+  const EXTENSION_ID = "kpobldejmmgjpcipmkiidcgcmegideph"; // Replace with your extension ID
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
+  
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (user) => {
@@ -374,6 +375,7 @@ const Dashboard = () => {
             botStatus={botStatus}
             selectedAction={selectedAction}
             handleSelectAction={handleSelectAction}
+            extensionId={EXTENSION_ID}
           />
         </div>
       </div>
