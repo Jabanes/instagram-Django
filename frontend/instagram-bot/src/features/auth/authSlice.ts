@@ -50,7 +50,11 @@ export const register = (userDetails: { email: string, password: string, firstNa
     const mappedUser = await mapFirebaseUserToCustomUser(firebaseUser);
 
     // Dispatch the login action with the mapped user data
-    dispatch(login(mappedUser)); 
+    if (mappedUser) {
+      dispatch(login(mappedUser));
+    } else {
+      throw new Error('Mapped user is null');
+    }
 
     // Store the user in localStorage
     localStorage.setItem('user', JSON.stringify(mappedUser));

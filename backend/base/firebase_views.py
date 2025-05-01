@@ -18,6 +18,8 @@ import errno
 import threading
 import json
 from threading import Thread, BoundedSemaphore 
+import jwt
+import traceback
 
 
 MAX_CONCURRENT_BOTS = 3
@@ -509,7 +511,7 @@ def check_new_data_flag(request):
     return Response({"new_data": os.path.exists(flag_path)})
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 @api_view(["GET"])
 def check_bot_status(request):
@@ -694,3 +696,101 @@ def run_sync_all_data(request):
     # --- Respond Immediately ---
     print(f"⚡️ Bot thread launched for user {user_id}. Responding 202 Accepted.", flush=True)
     return Response({"status": "Sync process accepted and started in background"}, status=status.HTTP_202_ACCEPTED)
+
+@api_view(['GET'])
+def get_dashboard_data(request):
+    """
+    Fetches consolidated data needed for the dashboard display:
+    follower/following counts, last sync time, and non-followers list.
+    Includes clock skew debugging.
+    """
+    print(f"\n--- Request received for /dashboard-data at {datetime.now()} ---") # Log request time
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        print("❌ Authorization header missing or invalid format.")
+        return Response({"error": "Missing or invalid Authorization header"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    id_token = auth_header.split("Bearer ")[1]
+    user_id = None # Initialize user_id
+
+    try:
+        # --- Enhanced Clock Skew Debugging ---
+        server_time_utc = datetime.now(timezone.utc)
+        server_timestamp = int(server_time_utc.timestamp())
+        print(f"DEBUG: Server time UTC: {server_time_utc} (Timestamp: {server_timestamp})")
+
+        # Decode token *without* verification just to get 'iat' for debugging
+        # Be careful using unverified data in production
+        try:
+            # Decode without verifying signature, expiry, or audience for debug purposes ONLY
+            unverified_payload = jwt.decode(id_token, options={"verify_signature": False, "verify_exp": False, "verify_aud": False})
+            token_iat = unverified_payload.get('iat')
+            token_exp = unverified_payload.get('exp')
+            token_aud = unverified_payload.get('aud') # Audience (Firebase Project ID)
+            print(f"DEBUG: Unverified Token - Issued At (iat): {token_iat}, Expires At (exp): {token_exp}, Audience (aud): {token_aud}")
+            if token_iat:
+                 time_diff = server_timestamp - token_iat
+                 print(f"DEBUG: Clock difference (server_now - token_iat): {time_diff} seconds")
+                 if abs(time_diff) > 300: # Log warning if skew is large (> 5 minutes)
+                     print(f"⚠️ WARNING: Significant clock skew detected ({time_diff}s). Check server time synchronization.")
+            else:
+                 print("DEBUG: Could not extract 'iat' from token.")
+        except Exception as decode_e:
+            print(f"DEBUG: Could not decode token for debug info: {decode_e}")
+        # --- End Debugging ---
+
+        print(f"Verifying token starting with: {id_token[:15]}...")
+        # *** TEMPORARY: Add clock_skew_seconds for debugging ***
+        # Increase if needed, but 5-15 seconds should be plenty.
+        # REMOVE or set to 0 in production after fixing clock sync.
+        decoded_token = firebase_auth.verify_id_token(id_token, clock_skew_seconds=15) # Increased tolerance slightly
+        user_id = decoded_token["uid"]
+        print(f"✅ Token verified successfully for user: {user_id}")
+
+        # --- If verification succeeds, proceed to fetch data ---
+        try:
+            print(f"Fetching dashboard data for user: {user_id}")
+            # Use Store methods, ensure they return lists or handle None/errors gracefully
+            followers_list = FollowerStore.list(user_id) or []
+            followings_list = FollowingStore.list(user_id) or []
+            non_followers_list = NonFollowerStore.list(user_id) or []
+            scan_info = UserScanInfoStore.get(user_id) or {}
+
+            # Determine the most recent sync time from available scan info
+            last_sync = scan_info.get("last_sync_all_time") or \
+                        scan_info.get("last_followers_scan") or \
+                        scan_info.get("last_following_scan") # Add more specific timestamp if available
+
+            dashboard_data = {
+                "followers_count": len(followers_list),
+                "following_count": len(followings_list),
+                "last_sync_time": last_sync, # Send raw timestamp object or ISO string from Firestore
+                "non_followers": non_followers_list, # Assumes list contains {id:..., username:...}
+            }
+            print(f"✅ Successfully fetched dashboard data for {user_id}")
+            return Response(dashboard_data, status=status.HTTP_200_OK)
+
+        except Exception as data_fetch_e:
+            # Handle errors during data fetching AFTER successful auth
+            print(f"❌ Error fetching dashboard data for {user_id} AFTER auth: {data_fetch_e}")
+            traceback.print_exc()
+            return Response({"error": "Could not retrieve dashboard data after authentication."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # --- Specific Firebase Auth Error Handling ---
+    except firebase_auth.ExpiredIdTokenError as e:
+         print(f"❌ TOKEN VERIFICATION FAILED (ExpiredIdTokenError) for user (ID unknown or invalid): {type(e).__name__} - {str(e)}")
+         return Response({"error": f"Token has expired. Please log in again. Details: {str(e)}"}, status=status.HTTP_401_UNAUTHORIZED)
+    except firebase_auth.RevokedIdTokenError as e:
+         print(f"❌ TOKEN VERIFICATION FAILED (RevokedIdTokenError) for user (ID unknown or invalid): {type(e).__name__} - {str(e)}")
+         return Response({"error": f"Token has been revoked. Please log in again. Details: {str(e)}"}, status=status.HTTP_401_UNAUTHORIZED)
+    except firebase_auth.InvalidIdTokenError as e:
+        # This catches various issues like clock skew, wrong audience, malformed token etc.
+        print(f"❌ TOKEN VERIFICATION FAILED (InvalidIdTokenError) for user (ID unknown or invalid): {type(e).__name__} - {str(e)}")
+        # Check specifically for clock skew message
+        if 'Token used too early' in str(e) or 'Token used too late' in str(e):
+            print("🔴 CLOCK SKEW DETECTED. Please synchronize the server clock with an NTP server.")
+        return Response({"error": f"Invalid token provided. Verification failed: {str(e)}"}, status=status.HTTP_401_UNAUTHORIZED)
+    except Exception as e: # Catch any other unexpected errors during verification
+         print(f"❌ UNEXPECTED TOKEN VERIFICATION FAILED for user (ID unknown or invalid): {type(e).__name__} - {str(e)}")
+         traceback.print_exc()
+         return Response({"error": f"Token verification failed unexpectedly: {str(e)}"}, status=status.HTTP_401_UNAUTHORIZED)

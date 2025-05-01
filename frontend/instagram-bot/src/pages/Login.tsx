@@ -27,7 +27,11 @@ export default function InstagramLogin() {
       const data = await loginUser(username, password);
 
       // Dispatch the login action with the mapped user data
-      dispatch(login(data.user));
+      if (data.user) {
+        dispatch(login(data.user));
+      } else {
+        throw new Error('User data is null');
+      }
 
       // Store the user and access token in localStorage
       localStorage.setItem('token', data.access);
