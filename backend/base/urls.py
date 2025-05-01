@@ -12,7 +12,7 @@ urlpatterns = [
     path('get-following', run_instagram_following_script, name='run-following-script'),
     path('get-followers', run_instagram_followers_script),
     path('unfollow', run_unfollow_non_followers_script, name='run_unfollow_non_followers'),
-    path('sync-all-data', run_sync_all_data, name='sync-all-data'),
+    path('sync-all', run_sync_all_data, name='sync-all'),
     path('follow-stats', get_user_follow_stats),
     path('check-data', check_new_data_flag),
     path("check-bot-status", check_bot_status),

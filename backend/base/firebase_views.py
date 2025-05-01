@@ -16,7 +16,8 @@ from django.core.management import call_command
 from socket import error as SocketError
 import errno
 import threading
-from threading import BoundedSemaphore, Thread
+import json
+from threading import Thread, BoundedSemaphore 
 
 
 MAX_CONCURRENT_BOTS = 3
@@ -581,11 +582,12 @@ def run_sync_all_data(request):
     Triggers the combined background task to efficiently sync
     followers, following, and non-followers data with Firestore.
     """
-    print("🔥 run_sync_all_data view triggered") # Log entry point
+    print("🔥 run_sync_all_data view triggered")
 
     # --- Authentication ---
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
+        print("❌ Missing or invalid Authorization header")
         return Response({"error": "Missing or invalid Authorization header"}, status=status.HTTP_401_UNAUTHORIZED)
 
     id_token = auth_header.split("Bearer ")[1]
@@ -607,89 +609,88 @@ def run_sync_all_data(request):
 
     # --- Concurrency Checks ---
     print(f"🚦 Checking concurrency for user {user_id}...")
-    current_status = BotStatusStore.get_status(user_id) # Check specific user status
-    if current_status and current_status.get("is_running"):
-        print(f"⚠️ Bot already running for user {user_id}. Rejecting request.")
-        return Response({"status": "Bot already running for this user"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    try:
+        current_status = BotStatusStore.get_status(user_id)
+        if current_status and current_status.get("is_running"):
+            print(f"⚠️ Bot already running for user {user_id} (Type: {current_status.get('type','unknown')}). Rejecting sync request.")
+            return Response({"status": f"Bot process ({current_status.get('type','unknown')}) already running for this user"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    except Exception as e:
+         print(f"❌ Error checking bot status for user {user_id}: {e}")
+         return Response({"error": "Failed to check current bot status."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     print(f"🚦 Attempting to acquire global semaphore (Available: {bot_semaphore._value})...")
-    if not bot_semaphore.acquire(blocking=False): # Check global limit
+    if not bot_semaphore.acquire(blocking=False):
         print(f"⚠️ Too many global bots running. Rejecting request for user {user_id}.")
         return Response(
             {"error": "Too many users are running bots right now. Please try again later."},
             status=status.HTTP_429_TOO_MANY_REQUESTS
         )
     print(f"✅ Semaphore acquired for user {user_id} (Available now: {bot_semaphore._value})")
+    semaphore_acquired = True # Flag to track if we need to release
 
     # --- Mark as running (BEFORE starting thread) ---
     try:
-        print(f"⏳ Setting bot status to 'running' for user {user_id}...")
+        print(f"⏳ Setting bot status to 'running' for sync user {user_id}...")
         BotStatusStore.set_running(user_id, True, bot_type="sync_all") # Indicate the type
+        print(f"✅ Successfully set 'running' status for sync user {user_id}.")
     except Exception as e:
-        print(f"❌ Failed to set 'running' status for user {user_id}: {e}. Releasing semaphore.")
-        bot_semaphore.release() # Release semaphore if DB update fails
+        print(f"❌ Failed to set 'running' status for sync user {user_id}: {e}. Releasing semaphore.")
+        if semaphore_acquired:
+            bot_semaphore.release()
         return Response({"error": "Failed to initialize bot status. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # --- Define Async Task ---
-    def run_sync_async():
-        thread_name = f"sync-all-thread-{user_id}"
+    def run_sync_async(uid, cookie_data, p_url):
+        thread_name = f"sync-all-thread-{uid}"
         threading.current_thread().name = thread_name
         print(f"🧵 Thread '{thread_name}' started.")
+        command_succeeded = False # Flag not really used here, command handles status
 
         try:
-            print(f"🚀 Calling sync_instagram_data command for user {user_id}...", flush=True)
-            # Convert cookies back to JSON string for command argument parser
-            cookies_json_str = json.dumps(cookies)
+            print(f"🚀 Calling sync_instagram_data command for user {uid}...", flush=True)
+            cookies_json_str = json.dumps(cookie_data) # *** Ensure json is imported ***
 
-            # Execute the management command
-            call_command('sync_instagram_data', user_id, cookies=cookies_json_str, profile_url=profile_url)
+            # Execute the management command - MAKE SURE 'sync_instagram_data' IS THE CORRECT NAME
+            call_command('sync_instagram_data', uid, cookies=cookies_json_str, profile_url=p_url)
 
-            # IMPORTANT ASSUMPTION: The 'sync_instagram_data' command itself is now responsible
-            # for updating BotStatusStore with its final status (success/error details).
-            # This view's background task only handles unexpected crashes DURING the call.
-            print(f"✅ sync_instagram_data command finished execution for user {user_id}", flush=True)
+            # Command is responsible for setting final status (success/no_change/error)
+            print(f"✅ sync_instagram_data command finished execution for user {uid}", flush=True)
 
         except Exception as e:
-            # Catch unexpected crashes *during* command execution or if it bubbles up
-            print(f"❌❌ Unhandled exception in background task for user {user_id}: {str(e)}", flush=True)
-            # Attempt to set a generic error status ONLY IF the command failed catastrophically
-            # without setting its own status.
+            print(f"❌❌ Unhandled exception in sync background task for user {uid}: {str(e)}", flush=True)
             try:
-                # Check if status was already set to final state by the command itself
-                final_check = BotStatusStore.get_status(user_id)
-                if final_check.get("is_running"): # Check if it still thinks it's running
-                     print(f"⚠️ Command crashed unexpectedly for {user_id}. Setting generic error status.")
-                     BotStatusStore.set_status(user_id, {
-                         "type": "sync_all",
-                         "status": "error",
-                         "timestamp": firestore.SERVER_TIMESTAMP,
-                         "message": f"Unexpected error during sync: {str(e)}"
-                         # Add other fields as None or default if necessary
-                     })
+                final_check = BotStatusStore.get_status(uid)
+                 # *** FIX: Check if final_check is a dictionary before calling .get() ***
+                if isinstance(final_check, dict) and final_check.get("is_running"):
+                    print(f"⚠️ Sync command crashed unexpectedly for {uid}. Setting generic error status.")
+                    BotStatusStore.set_status(uid, {
+                        "type": "sync_all",
+                        "status": "error",
+                        "timestamp": firestore.SERVER_TIMESTAMP,
+                        "message": f"Unexpected error during sync: {str(e)}"
+                    })
+                elif not isinstance(final_check, dict):
+                     print(f"⚠️ final_check was not a dict ({type(final_check)}), cannot check is_running after crash for {uid}.")
             except Exception as db_err:
-                 print(f"❌❌❌ Failed even to write CRASH error status for user {user_id}: {str(db_err)}", flush=True)
+                print(f"❌❌❌ Failed even to write CRASH error status for sync user {uid}: {str(db_err)}", flush=True)
         finally:
-            # **Crucial Cleanup**
-            print(f"🧹 Thread '{thread_name}' cleaning up resources...")
-            # Ensure is_running is set to false in Firestore, even if set_status was called by command
+            print(f"🧹 Sync Thread '{thread_name}' cleaning up resources...")
             try:
-                BotStatusStore.set_running(user_id, False)
-                print(f"✅ Set bot status to 'not running' for user {user_id}")
+                # Always ensure running is set to false at the end
+                BotStatusStore.set_running(uid, False)
+                print(f"✅ Set bot status to 'not running' for sync user {uid}")
             except Exception as db_err:
-                 print(f"❌❌ Failed to set 'not running' status for user {user_id}: {str(db_err)}", flush=True)
-            # Release the global semaphore
+                print(f"❌❌ Failed to set 'not running' status for sync user {uid}: {str(db_err)}", flush=True)
+            # Release the semaphore
             bot_semaphore.release()
-            print(f"✅ Semaphore released by user {user_id} (Available now: {bot_semaphore._value})")
+            print(f"✅ Semaphore released by sync user {uid} (Available now: {bot_semaphore._value})")
             print(f"🧵 Thread '{thread_name}' finished.")
 
 
     # --- Start Background Thread ---
-    Thread(target=run_sync_async).start()
+    background_thread = Thread(target=run_sync_async, args=(user_id, cookies, profile_url))
+    background_thread.start()
 
     # --- Respond Immediately ---
     print(f"⚡️ Bot thread launched for user {user_id}. Responding 202 Accepted.", flush=True)
-    # Return 202 Accepted: Indicates the request is accepted for processing, but is not complete.
     return Response({"status": "Sync process accepted and started in background"}, status=status.HTTP_202_ACCEPTED)
-
-# --- Don't forget your other views ---
-# login, signUp, get_non_followers, etc.

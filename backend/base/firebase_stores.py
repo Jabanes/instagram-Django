@@ -151,9 +151,19 @@ class UserScanInfoStore:
 
 class BotStatusStore:
     @staticmethod
-    def set_running(user_id: str, running: bool):
-        status_ref = db.collection("users").document(user_id).collection("status").document("bot")
-        status_ref.set({"is_running": running}, merge=True)
+    def set_running(user_id, is_running, bot_type=None):
+        try:
+            doc_ref = db.collection("users").document(str(user_id)).collection("status").document("bot")
+            print(f"Attempting to set status for path: {doc_ref.path}") # Log path
+            data_to_set = {"is_running": is_running}
+            if bot_type:
+                data_to_set["type"] = bot_type # Add type if provided
+            # Use update to avoid overwriting other fields, or set with merge=True
+            doc_ref.set(data_to_set, merge=True)
+            print(f"Successfully set is_running={is_running} for user {user_id}")
+        except Exception as e:
+            print(f"!!! Firestore error in set_running for user {user_id}: {e}") # Log specific error
+            raise # Re-raise the exception so the view knows it failed
 
     @staticmethod
     def get_status(user_id: str) -> Optional[bool]:
