@@ -1,4 +1,4 @@
-#!C:\Users\erezh\JohnBryceProjects\Projects\Instabot-Full\backend\env\Scripts\python.exe
+#!C:\Users\erezh\Programming\JohnBryceProjects\Projects\Instabot-Full\backend\env\Scripts\python.exe
 # -*- coding: utf-8 -*-
 # Copyright 2024 Google LLC
 #
